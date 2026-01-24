@@ -12,9 +12,9 @@ import { success } from '../../utils/response.js';
  * Register a new user with engineering role
  */
 export const signupController = asyncHandler(async (req, res) => {
-  const { name, email, password } = req.body;
+  const { loginId, name, email, password } = req.body;
 
-  const result = await authService.signup({ name, email, password });
+  const result = await authService.signup({ loginId, name, email, password });
 
   success(res, result, 201);
 });
@@ -24,9 +24,9 @@ export const signupController = asyncHandler(async (req, res) => {
  * Authenticate user and return token
  */
 export const loginController = asyncHandler(async (req, res) => {
-  const { email, password } = req.body;
+  const { loginId, password } = req.body;
 
-  const result = await authService.login({ email, password });
+  const result = await authService.login({ loginId, password });
 
   success(res, result, 200);
 });

@@ -33,6 +33,7 @@ const generateToken = (user) => {
 const formatUserResponse = (user) => {
   return {
     id: user.id,
+    loginId: user.loginId,
     name: user.name,
     email: user.email,
     role: user.role.name,
@@ -43,10 +44,21 @@ const formatUserResponse = (user) => {
 
 /**
  * Signup new user
- * @param {Object} data - { name, email, password }
+ * @param {Object} data - { loginId, name, email, password }
  * @returns {Object} { user, token }
  */
-export const signup = async ({ name, email, password }) => {
+export const signup = async ({ loginId, name, email, password }) => {
+  // Check if loginId already exists
+  const existingLoginId = await prisma.user.findUnique({
+    where: { loginId }
+  });
+
+  if (existingLoginId) {
+    const error = new Error('Login ID already taken');
+    error.statusCode = 409;
+    throw error;
+  }
+
   // Check if email already exists
   const existingUser = await prisma.user.findUnique({
     where: { email }
@@ -75,6 +87,7 @@ export const signup = async ({ name, email, password }) => {
   // Create user with engineering role
   const user = await prisma.user.create({
     data: {
+      loginId,
       name,
       email,
       passwordHash,
@@ -96,13 +109,13 @@ export const signup = async ({ name, email, password }) => {
 
 /**
  * Login user
- * @param {Object} data - { email, password }
+ * @param {Object} data - { loginId, password }
  * @returns {Object} { user, token }
  */
-export const login = async ({ email, password }) => {
-  // Find user by email
+export const login = async ({ loginId, password }) => {
+  // Find user by loginId
   const user = await prisma.user.findUnique({
-    where: { email },
+    where: { loginId },
     include: { role: true }
   });
 

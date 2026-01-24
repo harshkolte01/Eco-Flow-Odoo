@@ -59,6 +59,7 @@ model Role {
 
 model User {
   id           Int       @id @default(autoincrement())
+  loginId      String    @unique
   name         String
   email        String    @unique
   passwordHash String

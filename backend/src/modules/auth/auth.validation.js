@@ -3,6 +3,17 @@
  */
 
 export const signupSchema = {
+  loginId: {
+    required: true,
+    minLength: 6,
+    maxLength: 12,
+    validator: (value) => {
+      if (!/^[a-zA-Z0-9_-]+$/.test(value)) {
+        return 'Login ID must contain only letters, numbers, underscores, or hyphens';
+      }
+      return null;
+    }
+  },
   name: {
     required: true,
     minLength: 2,
@@ -26,9 +37,16 @@ export const signupSchema = {
 };
 
 export const loginSchema = {
-  email: {
+  loginId: {
     required: true,
-    type: 'email'
+    minLength: 6,
+    maxLength: 12,
+    validator: (value) => {
+      if (!/^[a-zA-Z0-9_-]+$/.test(value)) {
+        return 'Login ID must contain only letters, numbers, underscores, or hyphens';
+      }
+      return null;
+    }
   },
   password: {
     required: true
