@@ -8,7 +8,10 @@ import {
   getEcoProductDraftController,
   updateEcoProductDraftController,
   getEcoBomDraftController,
-  updateEcoBomDraftController
+  updateEcoBomDraftController,
+  approveEcoController,
+  validateEcoController,
+  rejectEcoController
 } from './ecos.controller.js';
 import { requireAuth } from '../../middlewares/auth.middleware.js';
 import { validate } from '../../middlewares/validate.middleware.js';
@@ -118,6 +121,42 @@ router.get(
   requireAuth,
   validate(ecoIdParamSchema, 'params'),
   getEcoByIdController
+);
+
+/**
+ * @route   POST /ecos/:id/approve
+ * @desc    Approve ECO
+ * @access  Private (Approver/Admin)
+ */
+router.post(
+  '/:id/approve',
+  requireAuth,
+  validate(ecoIdParamSchema, 'params'),
+  approveEcoController
+);
+
+/**
+ * @route   POST /ecos/:id/validate
+ * @desc    Validate ECO
+ * @access  Private
+ */
+router.post(
+  '/:id/validate',
+  requireAuth,
+  validate(ecoIdParamSchema, 'params'),
+  validateEcoController
+);
+
+/**
+ * @route   POST /ecos/:id/reject
+ * @desc    Reject ECO
+ * @access  Private (Approver/Admin)
+ */
+router.post(
+  '/:id/reject',
+  requireAuth,
+  validate(ecoIdParamSchema, 'params'),
+  rejectEcoController
 );
 
 export default router;

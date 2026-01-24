@@ -8,9 +8,17 @@ import { success } from '../../utils/response.js';
  */
 
 export const listBomsController = asyncHandler(async (req, res) => {
-  const { productId } = req.query;
+  const { productId, status, q } = req.query;
 
-  const boms = await bomsService.getBomsByProduct(productId);
+  let boms = [];
+
+  if (productId) {
+    boms = await bomsService.getBomsByProduct(productId);
+  } else {
+    const role = req.user?.role;
+    const effectiveStatus = role === 'operations' ? 'active' : status;
+    boms = await bomsService.listBomOverview({ status: effectiveStatus, q });
+  }
 
   success(res, { boms }, 200);
 });

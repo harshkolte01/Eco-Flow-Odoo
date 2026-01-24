@@ -17,6 +17,18 @@ const pickProductName = (versions = []) => {
   return versionOne ? versionOne.productName : null;
 };
 
+const pickProductUpdatedAt = (versions = []) => {
+  if (!Array.isArray(versions)) {
+    return null;
+  }
+  const active = versions.find((version) => version.status === 'active');
+  if (active) {
+    return active.updatedAt;
+  }
+  const versionOne = versions.find((version) => version.versionNo === 1);
+  return versionOne ? versionOne.updatedAt : null;
+};
+
 const pickBomVersionNo = (versions = []) => {
   if (!Array.isArray(versions)) {
     return null;
@@ -84,7 +96,8 @@ const ecoProductVersionSelect = {
   select: {
     productName: true,
     status: true,
-    versionNo: true
+    versionNo: true,
+    updatedAt: true
   },
   where: {
     OR: [{ status: 'active' }, { versionNo: 1 }]
@@ -154,7 +167,8 @@ const ecoListSelect = {
     select: {
       id: true,
       name: true,
-      sequenceOrder: true
+      sequenceOrder: true,
+      approvalRequired: true
     }
   },
   product: {
@@ -172,6 +186,7 @@ const formatEcoDetail = (eco) => {
   }
 
   const productName = pickProductName(eco.product?.versions);
+  const productUpdatedAt = pickProductUpdatedAt(eco.product?.versions);
   const bomVersionNo = pickBomVersionNo(eco.bom?.versions);
 
   return {
@@ -183,6 +198,7 @@ const formatEcoDetail = (eco) => {
     versionUpdate: eco.versionUpdate,
     createdAt: eco.createdAt,
     updatedAt: eco.updatedAt,
+    productUpdatedAt,
     currentStage: eco.currentStage,
     product: eco.product
       ? {
@@ -210,6 +226,7 @@ const formatEcoDetail = (eco) => {
 
 const formatEcoListItem = (eco) => {
   const productName = pickProductName(eco.product?.versions);
+  const productUpdatedAt = pickProductUpdatedAt(eco.product?.versions);
 
   return {
     id: eco.id,
@@ -220,6 +237,7 @@ const formatEcoListItem = (eco) => {
     versionUpdate: eco.versionUpdate,
     createdAt: eco.createdAt,
     updatedAt: eco.updatedAt,
+    productUpdatedAt,
     currentStage: eco.currentStage,
     product: eco.product
       ? {
@@ -240,6 +258,81 @@ const ensureEcoDraft = (eco) => {
 
   if (eco.status !== 'draft') {
     const error = new Error('Only draft ECOs can be modified');
+    error.statusCode = 409;
+    throw error;
+  }
+};
+
+const ensureEcoCreatorRole = (currentUser) => {
+  if (!currentUser) {
+    const error = new Error('Authentication required');
+    error.statusCode = 401;
+    throw error;
+  }
+
+  if (!['engineering', 'admin'].includes(currentUser.role)) {
+    const error = new Error('Only engineering or admin users can create ECOs');
+    error.statusCode = 403;
+    throw error;
+  }
+};
+
+const ensureEcoReadableByUser = (eco, currentUser) => {
+  if (!eco) {
+    const error = new Error('ECO not found');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  if (!currentUser) {
+    const error = new Error('Authentication required');
+    error.statusCode = 401;
+    throw error;
+  }
+
+  if (currentUser.role === 'operations') {
+    const error = new Error('Operations users cannot access ECOs');
+    error.statusCode = 403;
+    throw error;
+  }
+
+  const ecoOwnerId = eco.raisedById ?? eco.raisedBy?.id;
+
+  if (currentUser.role === 'engineering' && ecoOwnerId !== currentUser.id) {
+    const error = new Error('You do not have access to this ECO');
+    error.statusCode = 403;
+    throw error;
+  }
+};
+
+const ensureEcoEditableByUser = (eco, currentUser) => {
+  ensureEcoReadableByUser(eco, currentUser);
+
+  if (currentUser.role === 'approver') {
+    const error = new Error('Approvers cannot modify ECOs');
+    error.statusCode = 403;
+    throw error;
+  }
+
+  const ecoOwnerId = eco.raisedById ?? eco.raisedBy?.id;
+
+  if (currentUser.role === 'engineering' && ecoOwnerId !== currentUser.id) {
+    const error = new Error('Only the ECO owner can modify this record');
+    error.statusCode = 403;
+    throw error;
+  }
+};
+
+const ensureEcoReadable = (eco) => {
+  if (!eco) {
+    const error = new Error('ECO not found');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const readableStatuses = new Set(['draft', 'in_progress', 'approved', 'applied']);
+  if (!readableStatuses.has(eco.status)) {
+    const error = new Error('ECO is not available for review');
     error.statusCode = 409;
     throw error;
   }
@@ -319,30 +412,9 @@ const getBaseProductVersion = async (tx, productId) => {
     return activeVersion;
   }
 
-  const fallbackVersion = await tx.productVersion.findFirst({
-    where: {
-      productId
-    },
-    orderBy: {
-      versionNo: 'asc'
-    },
-    select: {
-      id: true,
-      productName: true,
-      salePrice: true,
-      costPrice: true,
-      attachments: true,
-      versionNo: true
-    }
-  });
-
-  if (!fallbackVersion) {
-    const error = new Error('Base product version not found');
-    error.statusCode = 404;
-    throw error;
-  }
-
-  return fallbackVersion;
+  const error = new Error('Active product version not found');
+  error.statusCode = 400;
+  throw error;
 };
 
 const getBaseBomVersion = async (tx, bomId) => {
@@ -375,37 +447,9 @@ const getBaseBomVersion = async (tx, bomId) => {
     return activeVersion;
   }
 
-  const fallbackVersion = await tx.bomVersion.findFirst({
-    where: {
-      bomId
-    },
-    orderBy: {
-      versionNo: 'asc'
-    },
-    include: {
-      components: {
-        select: {
-          componentProductVersionId: true,
-          quantity: true
-        }
-      },
-      operations: {
-        select: {
-          operationName: true,
-          timeMinutes: true,
-          workCenter: true
-        }
-      }
-    }
-  });
-
-  if (!fallbackVersion) {
-    const error = new Error('Base BoM version not found');
-    error.statusCode = 404;
-    throw error;
-  }
-
-  return fallbackVersion;
+  const error = new Error('Active BoM version not found');
+  error.statusCode = 400;
+  throw error;
 };
 
 
@@ -424,6 +468,7 @@ const enforceEcoTypeRules = ({ ecoType, bomId }) => {
 };
 
 export const createEco = async (payload, currentUser) => {
+  ensureEcoCreatorRole(currentUser);
   const stage = await ensureEcoStageExists();
 
   const normalizedEffectiveDate = parseOptionalDate(
@@ -443,35 +488,60 @@ export const createEco = async (payload, currentUser) => {
   const versionUpdate =
     typeof payload.versionUpdate === 'boolean' ? payload.versionUpdate : true;
 
-  const eco = await prisma.eco.create({
-    data: {
-      title: payload.title,
-      ecoType,
-      productId,
-      bomId: normalizedBomId,
-      raisedById: resolvedRaisedById,
-      effectiveDate: normalizedEffectiveDate,
-      versionUpdate,
-      currentStageId: stage.id,
-      status: 'draft'
-    },
+  const createdEcoId = await prisma.$transaction(async (tx) => {
+    const createdEco = await tx.eco.create({
+      data: {
+        title: payload.title,
+        ecoType,
+        productId,
+        bomId: normalizedBomId,
+        raisedById: resolvedRaisedById,
+        effectiveDate: normalizedEffectiveDate,
+        versionUpdate,
+        currentStageId: stage.id,
+        status: 'draft'
+      },
+      select: { id: true }
+    });
+
+    await tx.auditLog.create({
+      data: {
+        entityType: 'eco',
+        entityId: String(createdEco.id),
+        action: 'created',
+        performedById: currentUser?.id ?? resolvedRaisedById,
+        newValue: { status: 'draft', stageId: stage.id }
+      }
+    });
+
+    return createdEco.id;
+  });
+
+  const eco = await prisma.eco.findUnique({
+    where: { id: createdEcoId },
     select: ecoDetailSelect
   });
 
   return formatEcoDetail(eco);
 };
 
-export const updateEco = async (ecoId, payload) => {
+export const updateEco = async (ecoId, payload, currentUser) => {
   const existingEco = await prisma.eco.findUnique({
     where: { id: ecoId },
     select: {
       id: true,
       status: true,
       ecoType: true,
-      bomId: true
+      bomId: true,
+      raisedById: true,
+      title: true,
+      productId: true,
+      effectiveDate: true,
+      versionUpdate: true
     }
   });
 
+  ensureEcoEditableByUser(existingEco, currentUser);
   ensureEcoDraft(existingEco);
 
   const data = {};
@@ -515,16 +585,46 @@ export const updateEco = async (ecoId, payload) => {
   data.ecoType = normalized.ecoType;
   data.bomId = normalized.bomId;
 
-  const updatedEco = await prisma.eco.update({
-    where: { id: ecoId },
-    data,
-    select: ecoDetailSelect
+  const changedFields = Object.keys(data).filter((field) => {
+    const previousValue =
+      existingEco[field] instanceof Date ? existingEco[field].toISOString() : existingEco[field];
+    const nextValue = data[field] instanceof Date ? data[field].toISOString() : data[field];
+    return previousValue !== nextValue;
   });
+  const updatedEco = await prisma.$transaction(async (tx) => {
+    const updated = await tx.eco.update({
+      where: { id: ecoId },
+      data,
+      select: ecoDetailSelect
+    });
+
+    if (changedFields.length > 0) {
+      const oldValue = {};
+      const newValue = {};
+      changedFields.forEach((field) => {
+        oldValue[field] = existingEco[field];
+        newValue[field] = data[field];
+      });
+
+      await tx.auditLog.create({
+        data: {
+          entityType: 'eco',
+          entityId: String(ecoId),
+          action: 'updated',
+          performedById: currentUser?.id ?? existingEco.raisedById,
+          oldValue,
+          newValue
+        }
+      });
+    }
+
+    return updated;
+  }, { maxWait: 5000, timeout: 20000 });
 
   return formatEcoDetail(updatedEco);
 };
 
-export const startEco = async (ecoId) => {
+export const startEco = async (ecoId, currentUser) => {
   const eco = await prisma.eco.findUnique({
     where: { id: ecoId },
     select: {
@@ -533,10 +633,13 @@ export const startEco = async (ecoId) => {
       ecoType: true,
       status: true,
       productId: true,
-      bomId: true
+      bomId: true,
+      currentStageId: true,
+      raisedById: true
     }
   });
 
+  ensureEcoEditableByUser(eco, currentUser);
   ensureEcoDraft(eco);
 
   if (!eco.title || !eco.ecoType || !eco.productId) {
@@ -635,18 +738,45 @@ export const startEco = async (ecoId) => {
     }
   }
 
-  // Get the next stage (Approval stage - sequence order 2)
+  const currentStage = await prisma.ecoStage.findUnique({
+    where: { id: eco.currentStageId },
+    select: { sequenceOrder: true }
+  });
+
+  if (!currentStage) {
+    const error = new Error('Current ECO stage not found');
+    error.statusCode = 500;
+    throw error;
+  }
+
   const nextStage = await prisma.ecoStage.findFirst({
     where: {
-      sequenceOrder: 2
+      sequenceOrder: {
+        gt: currentStage.sequenceOrder
+      }
+    },
+    orderBy: {
+      sequenceOrder: 'asc'
     }
   });
 
   if (!nextStage) {
-    const error = new Error('Approval stage not found. Please run database seed.');
+    const error = new Error('Next ECO stage not found. Please check stage configuration.');
     error.statusCode = 500;
     throw error;
   }
+
+  operations.push(
+    prisma.auditLog.create({
+      data: {
+        entityType: 'eco',
+        entityId: String(ecoId),
+        action: 'started',
+        performedById: currentUser?.id ?? eco.raisedById,
+        newValue: { status: 'in_progress', stageId: nextStage.id }
+      }
+    })
+  );
 
   operations.push(
     prisma.eco.update({
@@ -705,33 +835,31 @@ export const listEcos = async ({ q, ecoType, scope = 'all', currentUser }) => {
   return ecos.map(formatEcoListItem);
 };
 
-export const getEcoById = async (ecoId) => {
+export const getEcoById = async (ecoId, currentUser) => {
   const eco = await prisma.eco.findUnique({
     where: { id: ecoId },
     select: ecoDetailSelect
   });
 
-  if (!eco) {
-    const error = new Error('ECO not found');
-    error.statusCode = 404;
-    throw error;
-  }
+  ensureEcoReadableByUser(eco, currentUser);
 
   return formatEcoDetail(eco);
 };
 
-export const getEcoProductDraft = async (ecoId) => {
+export const getEcoProductDraft = async (ecoId, currentUser) => {
   const eco = await prisma.eco.findUnique({
     where: { id: ecoId },
     select: {
       id: true,
       ecoType: true,
       status: true,
-      productId: true
+      productId: true,
+      raisedById: true
     }
   });
 
-  ensureEcoDraft(eco);
+  ensureEcoReadableByUser(eco, currentUser);
+  ensureEcoReadable(eco);
   ensureEcoType(eco, 'product');
 
   let draft = await prisma.ecoProductChange.findUnique({
@@ -749,6 +877,11 @@ export const getEcoProductDraft = async (ecoId) => {
   });
 
   if (!draft) {
+    if (eco.status !== 'draft') {
+      const error = new Error('Draft changes not found for this ECO');
+      error.statusCode = 404;
+      throw error;
+    }
     const baseVersion = await getBaseProductVersion(prisma, eco.productId);
     draft = await prisma.ecoProductChange.create({
       data: {
@@ -783,17 +916,19 @@ export const getEcoProductDraft = async (ecoId) => {
   };
 };
 
-export const updateEcoProductDraft = async (ecoId, payload) => {
+export const updateEcoProductDraft = async (ecoId, payload, currentUser) => {
   const eco = await prisma.eco.findUnique({
     where: { id: ecoId },
     select: {
       id: true,
       ecoType: true,
       status: true,
-      productId: true
+      productId: true,
+      raisedById: true
     }
   });
 
+  ensureEcoEditableByUser(eco, currentUser);
   ensureEcoDraft(eco);
   ensureEcoType(eco, 'product');
 
@@ -872,7 +1007,7 @@ export const updateEcoProductDraft = async (ecoId, payload) => {
     });
   }
 
-  return {
+  const response = {
     base: draft.baseProductVersion,
     draft: {
       newProductName: draft.newProductName,
@@ -881,9 +1016,21 @@ export const updateEcoProductDraft = async (ecoId, payload) => {
       newAttachments: draft.newAttachments
     }
   };
+
+  await prisma.auditLog.create({
+    data: {
+      entityType: 'eco',
+      entityId: String(ecoId),
+      action: 'draft_updated',
+      performedById: currentUser?.id ?? eco.raisedById,
+      newValue: { ecoType: 'product', fields: Object.keys(data) }
+    }
+  });
+
+  return response;
 };
 
-export const getEcoBomDraft = async (ecoId) => {
+export const getEcoBomDraft = async (ecoId, currentUser) => {
   const eco = await prisma.eco.findUnique({
     where: { id: ecoId },
     select: {
@@ -891,11 +1038,13 @@ export const getEcoBomDraft = async (ecoId) => {
       ecoType: true,
       status: true,
       productId: true,
-      bomId: true
+      bomId: true,
+      raisedById: true
     }
   });
 
-  ensureEcoDraft(eco);
+  ensureEcoReadableByUser(eco, currentUser);
+  ensureEcoReadable(eco);
   ensureEcoType(eco, 'bom');
 
   if (!eco.bomId) {
@@ -907,6 +1056,20 @@ export const getEcoBomDraft = async (ecoId) => {
   let draft = await prisma.ecoBomDraft.findUnique({
     where: { ecoId: eco.id },
     include: {
+      baseBomVersion: {
+        include: {
+          components: {
+            include: {
+              componentProductVersion: {
+                include: {
+                  product: true
+                }
+              }
+            }
+          },
+          operations: true
+        }
+      },
       components: {
         select: {
           componentProductVersionId: true,
@@ -934,6 +1097,11 @@ export const getEcoBomDraft = async (ecoId) => {
   });
 
   if (!draft) {
+    if (eco.status !== 'draft') {
+      const error = new Error('Draft changes not found for this ECO');
+      error.statusCode = 404;
+      throw error;
+    }
     const baseVersion = await getBaseBomVersion(prisma, eco.bomId);
 
     const draftData = {
@@ -995,21 +1163,36 @@ export const getEcoBomDraft = async (ecoId) => {
   }
 
   return {
-    components: draft.components.map((component) => ({
-      componentProductVersionId: component.componentProductVersionId,
-      quantity: component.quantity,
-      productName: component.componentProductVersion.productName,
-      productCode: component.componentProductVersion.product.productCode
-    })),
-    operations: draft.operations.map((operation) => ({
-      operationName: operation.operationName,
-      timeMinutes: operation.timeMinutes,
-      workCenter: operation.workCenter
-    }))
+    base: {
+      components: draft.baseBomVersion.components.map((component) => ({
+        componentProductVersionId: component.componentProductVersionId,
+        quantity: component.quantity,
+        productName: component.componentProductVersion.productName,
+        productCode: component.componentProductVersion.product.productCode
+      })),
+      operations: draft.baseBomVersion.operations.map((operation) => ({
+        operationName: operation.operationName,
+        timeMinutes: operation.timeMinutes,
+        workCenter: operation.workCenter
+      }))
+    },
+    draft: {
+      components: draft.components.map((component) => ({
+        componentProductVersionId: component.componentProductVersionId,
+        quantity: component.quantity,
+        productName: component.componentProductVersion.productName,
+        productCode: component.componentProductVersion.product.productCode
+      })),
+      operations: draft.operations.map((operation) => ({
+        operationName: operation.operationName,
+        timeMinutes: operation.timeMinutes,
+        workCenter: operation.workCenter
+      }))
+    }
   };
 };
 
-export const updateEcoBomDraft = async (ecoId, payload) => {
+export const updateEcoBomDraft = async (ecoId, payload, currentUser) => {
   const eco = await prisma.eco.findUnique({
     where: { id: ecoId },
     select: {
@@ -1017,10 +1200,12 @@ export const updateEcoBomDraft = async (ecoId, payload) => {
       ecoType: true,
       status: true,
       productId: true,
-      bomId: true
+      bomId: true,
+      raisedById: true
     }
   });
 
+  ensureEcoEditableByUser(eco, currentUser);
   ensureEcoDraft(eco);
   ensureEcoType(eco, 'bom');
 
@@ -1144,13 +1329,538 @@ export const updateEcoBomDraft = async (ecoId, payload) => {
     await prisma.$transaction(operationsList);
   }
 
-  return getEcoBomDraft(ecoId);
+  const response = await getEcoBomDraft(ecoId, currentUser);
+
+  await prisma.auditLog.create({
+    data: {
+      entityType: 'eco',
+      entityId: String(ecoId),
+      action: 'draft_updated',
+      performedById: currentUser?.id ?? eco.raisedById,
+      newValue: {
+        ecoType: 'bom',
+        components: componentData.length,
+        operations: operationData.length
+      }
+    }
+  });
+
+  return response;
+};
+
+const ensureEcoInProgress = (eco) => {
+  if (!eco) {
+    const error = new Error('ECO not found');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  if (eco.status !== 'in_progress') {
+    const error = new Error('ECO must be in progress to perform this action');
+    error.statusCode = 409;
+    throw error;
+  }
+};
+
+const ensureApproverRole = (currentUser) => {
+  if (currentUser.role !== 'approver' && currentUser.role !== 'admin') {
+    const error = new Error('Only approvers or admins can perform this action');
+    error.statusCode = 403;
+    throw error;
+  }
+};
+
+const getNextStage = async (currentSequenceOrder) => {
+  return prisma.ecoStage.findFirst({
+    where: {
+      sequenceOrder: {
+        gt: currentSequenceOrder
+      }
+    },
+    orderBy: {
+      sequenceOrder: 'asc'
+    }
+  });
+};
+
+const getFirstStage = async () => {
+  return prisma.ecoStage.findFirst({
+    orderBy: {
+      sequenceOrder: 'asc'
+    }
+  });
+};
+
+const isFinalStage = async (stageId) => {
+  const nextStage = await prisma.ecoStage.findFirst({
+    where: {
+      sequenceOrder: {
+        gt: (await prisma.ecoStage.findUnique({ where: { id: stageId } })).sequenceOrder
+      }
+    }
+  });
+  return !nextStage;
+};
+
+export const approveEco = async (ecoId, currentUser) => {
+  const eco = await prisma.eco.findUnique({
+    where: { id: ecoId },
+    include: {
+      currentStage: true
+    }
+  });
+
+  ensureEcoInProgress(eco);
+  ensureApproverRole(currentUser);
+
+  if (!eco.currentStage.approvalRequired) {
+    const error = new Error('Current stage does not require approval. Use validate instead.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const nextStage = await getNextStage(eco.currentStage.sequenceOrder);
+
+  if (!nextStage) {
+    const error = new Error('No next stage found');
+    error.statusCode = 500;
+    throw error;
+  }
+
+  const nextStageIsFinal = await isFinalStage(nextStage.id);
+
+  const updatedEcoId = await prisma.$transaction(async (tx) => {
+    await tx.ecoApproval.create({
+      data: {
+        ecoId: eco.id,
+        stageId: eco.currentStageId,
+        approverId: currentUser.id,
+        status: 'approved',
+        actionDate: new Date()
+      }
+    });
+
+    const ecoUpdate = await tx.eco.update({
+      where: { id: ecoId },
+      data: {
+        currentStageId: nextStage.id,
+        status: nextStageIsFinal ? 'approved' : 'in_progress'
+      },
+      select: { id: true }
+    });
+
+    await tx.auditLog.create({
+      data: {
+        entityType: 'eco',
+        entityId: String(ecoId),
+        action: 'approved',
+        performedById: currentUser.id,
+        newValue: { stageId: nextStage.id, status: nextStageIsFinal ? 'approved' : 'in_progress' }
+      }
+    });
+
+    return ecoUpdate.id;
+  });
+
+  if (nextStageIsFinal) {
+    try {
+      await applyEcoChanges(ecoId, currentUser.id);
+    } catch (error) {
+      await prisma.eco.update({
+        where: { id: ecoId },
+        data: {
+          currentStageId: eco.currentStageId,
+          status: 'in_progress'
+        }
+      });
+      throw error;
+    }
+  }
+
+  const updatedEco = await prisma.eco.findUnique({
+    where: { id: updatedEcoId },
+    select: ecoDetailSelect
+  });
+
+  return formatEcoDetail(updatedEco);
+};
+
+export const validateEco = async (ecoId, currentUser) => {
+  const eco = await prisma.eco.findUnique({
+    where: { id: ecoId },
+    include: {
+      currentStage: true
+    }
+  });
+
+  ensureEcoInProgress(eco);
+  ensureApproverRole(currentUser);
+
+  if (eco.currentStage.approvalRequired) {
+    const error = new Error('Current stage requires approval. Use approve instead.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const nextStage = await getNextStage(eco.currentStage.sequenceOrder);
+
+  if (!nextStage) {
+    const error = new Error('No next stage found');
+    error.statusCode = 500;
+    throw error;
+  }
+
+  const nextStageIsFinal = await isFinalStage(nextStage.id);
+
+  let updatedEco = await prisma.eco.update({
+    where: { id: ecoId },
+    data: {
+      currentStageId: nextStage.id,
+      status: nextStageIsFinal ? 'approved' : 'in_progress'
+    },
+    select: ecoDetailSelect
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      entityType: 'eco',
+      entityId: String(ecoId),
+      action: 'validated',
+      performedById: currentUser.id,
+      newValue: { stageId: nextStage.id }
+    }
+  });
+
+  if (nextStageIsFinal) {
+    try {
+      await applyEcoChanges(ecoId, currentUser.id);
+      updatedEco = await prisma.eco.findUnique({
+        where: { id: ecoId },
+        select: ecoDetailSelect
+      });
+    } catch (error) {
+      await prisma.eco.update({
+        where: { id: ecoId },
+        data: {
+          currentStageId: eco.currentStageId,
+          status: 'in_progress'
+        }
+      });
+      throw error;
+    }
+  }
+
+  return formatEcoDetail(updatedEco);
+};
+
+export const rejectEco = async (ecoId, currentUser) => {
+  const eco = await prisma.eco.findUnique({
+    where: { id: ecoId },
+    include: {
+      currentStage: true
+    }
+  });
+
+  ensureEcoInProgress(eco);
+  ensureApproverRole(currentUser);
+
+  const firstStage = await getFirstStage();
+
+  if (!firstStage) {
+    const error = new Error('First stage not found');
+    error.statusCode = 500;
+    throw error;
+  }
+
+  const updatedEco = await prisma.$transaction(async (tx) => {
+    await tx.ecoApproval.create({
+      data: {
+        ecoId: eco.id,
+        stageId: eco.currentStageId,
+        approverId: currentUser.id,
+        status: 'rejected',
+        actionDate: new Date()
+      }
+    });
+
+    const ecoUpdate = await tx.eco.update({
+      where: { id: ecoId },
+      data: {
+        currentStageId: firstStage.id,
+        status: 'draft'
+      },
+      select: ecoDetailSelect
+    });
+
+    await tx.auditLog.create({
+      data: {
+        entityType: 'eco',
+        entityId: String(ecoId),
+        action: 'rejected',
+        performedById: currentUser.id,
+        newValue: { stageId: firstStage.id, status: 'draft' }
+      }
+    });
+
+    return ecoUpdate;
+  });
+
+  return formatEcoDetail(updatedEco);
+};
+
+export const applyEcoChanges = async (ecoId, performedById) => {
+  const eco = await prisma.eco.findUnique({
+    where: { id: ecoId },
+    include: {
+      currentStage: true,
+      productChange: true,
+      bomDraft: {
+        include: {
+          components: true,
+          operations: true
+        }
+      }
+    }
+  });
+
+  if (!eco) {
+    const error = new Error('ECO not found');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  if (eco.status !== 'approved') {
+    const error = new Error('Only approved ECOs can be applied');
+    error.statusCode = 409;
+    throw error;
+  }
+
+  const resolvedPerformedById = performedById ?? eco.raisedById;
+
+  return await prisma.$transaction(async (tx) => {
+    let result;
+
+    if (eco.ecoType === 'product') {
+      const draft = eco.productChange;
+      if (!draft) {
+        throw new Error('No product changes found in ECO');
+      }
+
+      const baseVersion = await tx.productVersion.findUnique({
+        where: { id: draft.baseProductVersionId }
+      });
+      if (!baseVersion) {
+        const error = new Error('Base product version not found');
+        error.statusCode = 409;
+        throw error;
+      }
+      if (baseVersion.status !== 'active') {
+        const error = new Error('Base product version is no longer active');
+        error.statusCode = 409;
+        throw error;
+      }
+
+      if (eco.versionUpdate) {
+        // Create new version
+        const lastVersion = await tx.productVersion.findFirst({
+          where: { productId: eco.productId },
+          orderBy: { versionNo: 'desc' }
+        });
+
+        const nextVersionNo = lastVersion ? lastVersion.versionNo + 1 : 1;
+
+        // Archive current active version
+        await tx.productVersion.updateMany({
+          where: { productId: eco.productId, status: 'active' },
+          data: { status: 'archived' }
+        });
+
+        result = await tx.productVersion.create({
+          data: {
+            productId: eco.productId,
+            versionNo: nextVersionNo,
+            productName: draft.newProductName ?? baseVersion.productName,
+            salePrice: draft.newSalePrice ?? baseVersion.salePrice,
+            costPrice: draft.newCostPrice ?? baseVersion.costPrice,
+            attachments: draft.newAttachments ?? baseVersion.attachments,
+            status: 'active',
+            createdFromEcoId: eco.id
+          }
+        });
+
+        await tx.versionActivationLog.create({
+          data: {
+            ecoId: eco.id,
+            oldProductVersionId: baseVersion.id,
+            newProductVersionId: result.id,
+            entityType: 'product'
+          }
+        });
+      } else {
+        // Update current version
+        result = await tx.productVersion.update({
+          where: { id: draft.baseProductVersionId },
+          data: {
+            productName: draft.newProductName ?? baseVersion.productName,
+            salePrice: draft.newSalePrice ?? baseVersion.salePrice,
+            costPrice: draft.newCostPrice ?? baseVersion.costPrice,
+            attachments: draft.newAttachments ?? baseVersion.attachments
+          }
+        });
+      }
+    } else if (eco.ecoType === 'bom') {
+      const draft = eco.bomDraft;
+      if (!draft) {
+        throw new Error('No BoM changes found in ECO');
+      }
+
+      const baseVersion = await tx.bomVersion.findUnique({
+        where: { id: draft.baseBomVersionId }
+      });
+      if (!baseVersion) {
+        const error = new Error('Base BoM version not found');
+        error.statusCode = 409;
+        throw error;
+      }
+      if (baseVersion.status !== 'active') {
+        const error = new Error('Base BoM version is no longer active');
+        error.statusCode = 409;
+        throw error;
+      }
+
+      if (eco.versionUpdate) {
+        // Create new BoM version
+        const lastVersion = await tx.bomVersion.findFirst({
+          where: { bomId: eco.bomId },
+          orderBy: { versionNo: 'desc' }
+        });
+
+        const nextVersionNo = lastVersion ? lastVersion.versionNo + 1 : 1;
+
+        // Get current active product version
+        const activeProductVersion = await tx.productVersion.findFirst({
+          where: { productId: eco.productId, status: 'active' }
+        });
+
+        if (!activeProductVersion) {
+          throw new Error('No active product version found to link BoM');
+        }
+
+        // Archive current active BoM version
+        await tx.bomVersion.updateMany({
+          where: { bomId: eco.bomId, status: 'active' },
+          data: { status: 'archived' }
+        });
+
+        const createData = {
+          bomId: eco.bomId,
+          versionNo: nextVersionNo,
+          productVersionId: activeProductVersion.id,
+          status: 'active',
+          createdFromEcoId: eco.id
+        };
+
+        if (draft.components.length > 0) {
+          createData.components = {
+            createMany: {
+              data: draft.components.map((c) => ({
+                componentProductVersionId: c.componentProductVersionId,
+                quantity: c.quantity
+              }))
+            }
+          };
+        }
+
+        if (draft.operations.length > 0) {
+          createData.operations = {
+            createMany: {
+              data: draft.operations.map((o) => ({
+                operationName: o.operationName,
+                timeMinutes: o.timeMinutes,
+                workCenter: o.workCenter
+              }))
+            }
+          };
+        }
+
+        result = await tx.bomVersion.create({
+          data: createData
+        });
+
+        await tx.versionActivationLog.create({
+          data: {
+            ecoId: eco.id,
+            oldBomVersionId: baseVersion.id,
+            newBomVersionId: result.id,
+            entityType: 'bom'
+          }
+        });
+      } else {
+        // Update current version - delete old and recreate components/operations
+        await tx.bomComponent.deleteMany({ where: { bomVersionId: baseVersion.id } });
+        await tx.bomOperation.deleteMany({ where: { bomVersionId: baseVersion.id } });
+
+        const updateData = {};
+        if (draft.components.length > 0) {
+          updateData.components = {
+            createMany: {
+              data: draft.components.map((c) => ({
+                componentProductVersionId: c.componentProductVersionId,
+                quantity: c.quantity
+              }))
+            }
+          };
+        }
+        if (draft.operations.length > 0) {
+          updateData.operations = {
+            createMany: {
+              data: draft.operations.map((o) => ({
+                operationName: o.operationName,
+                timeMinutes: o.timeMinutes,
+                workCenter: o.workCenter
+              }))
+            }
+          };
+        }
+        if (Object.keys(updateData).length === 0) {
+          updateData.updatedAt = new Date();
+        }
+
+        result = await tx.bomVersion.update({
+          where: { id: baseVersion.id },
+          data: updateData
+        });
+      }
+    }
+
+    // Mark ECO as applied
+    await tx.eco.update({
+      where: { id: ecoId },
+      data: { status: 'applied' }
+    });
+
+    // Create audit log
+    await tx.auditLog.create({
+      data: {
+        entityType: 'eco',
+        entityId: String(ecoId),
+        action: 'applied',
+        performedById: resolvedPerformedById,
+        newValue: { versionUpdate: eco.versionUpdate, entityId: result.id }
+      }
+    });
+
+    return result;
+  }, { maxWait: 5000, timeout: 20000 });
 };
 
 export default {
   createEco,
   updateEco,
   startEco,
+  approveEco,
+  validateEco,
+  rejectEco,
   listEcos,
   getEcoById,
   getEcoProductDraft,

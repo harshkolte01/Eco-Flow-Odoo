@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { apiFetch, ApiError } from '@/lib/api';
+import { EcoChangesView } from './EcoChangesView';
 
 interface CurrentUser {
   id: string;
@@ -109,6 +111,7 @@ const Skeleton = ({ className }: { className?: string }) => (
 );
 
 export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initialEcoId }: EcoCreateModalProps) {
+  const router = useRouter();
   const [form, setForm] = useState<EcoFormState>(emptyForm);
   const [ecoId, setEcoId] = useState<number | null>(null);
   const [products, setProducts] = useState<ProductOption[]>([]);
@@ -127,9 +130,16 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initi
   const [draftTouched, setDraftTouched] = useState(false);
   const [autoCreateError, setAutoCreateError] = useState<string | null>(null);
   const [autoCreating, setAutoCreating] = useState(false);
+  const [eco, setEco] = useState<any>(null);
   const autoCreatedRef = useRef(false);
+  const autoCreatePromiseRef = useRef<Promise<number | null> | null>(null);
+  const manualCreateRef = useRef(false);
+  const [reviewTab, setReviewTab] = useState<'approval' | 'changes'>('changes');
+  const changesRef = useRef<HTMLDivElement | null>(null);
 
   const isAdmin = currentUser?.role === 'admin';
+  const canEdit = currentUser?.role === 'engineering' || currentUser?.role === 'admin';
+  const canApprove = currentUser?.role === 'approver' || currentUser?.role === 'admin';
 
   const currentUserId = useMemo(() => {
     if (!currentUser?.id) {
@@ -145,6 +155,7 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initi
       raisedById: currentUserId
     });
     setEcoId(initialEcoId ?? null);
+    setEco(null);
     setMessage(null);
     setStarted(false);
     setIsSaved(!!initialEcoId);
@@ -156,7 +167,10 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initi
     setDraftTouched(false);
     setAutoCreateError(null);
     setAutoCreating(false);
-    autoCreatedRef.current = false;
+    autoCreatedRef.current = !!initialEcoId;
+    autoCreatePromiseRef.current = null;
+    manualCreateRef.current = false;
+    setReviewTab('changes');
   };
 
   useEffect(() => {
@@ -168,6 +182,15 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initi
   }, [isOpen, currentUserId]);
 
   useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+    if (started) {
+      setReviewTab('changes');
+    }
+  }, [isOpen, started]);
+
+  useEffect(() => {
     if (!isOpen || !initialEcoId) {
       return;
     }
@@ -176,18 +199,20 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initi
       setLoadingOptions(true);
       try {
         const response = await apiFetch<{ eco: any }>(`/api/ecos/${initialEcoId}`);
-        const eco = response.data?.eco;
+        const ecoData = response.data?.eco;
 
-        if (eco) {
+        if (ecoData) {
+          setEco(ecoData);
+          setStarted(ecoData.status !== 'draft');
           setForm((prev) => ({
             ...prev,
-            title: eco.title,
-            ecoType: eco.ecoType,
-            productId: String(eco.product?.id || ''),
-            bomId: String(eco.bom?.id || ''),
-            raisedById: String(eco.raisedBy?.id || ''),
-            effectiveDate: eco.effectiveDate ? new Date(eco.effectiveDate).toISOString().slice(0, 16) : '',
-            versionUpdate: eco.versionUpdate
+            title: ecoData.title,
+            ecoType: ecoData.ecoType,
+            productId: String(ecoData.product?.id || ''),
+            bomId: String(ecoData.bom?.id || ''),
+            raisedById: String(ecoData.raisedBy?.id || ''),
+            effectiveDate: ecoData.effectiveDate ? new Date(ecoData.effectiveDate).toISOString().slice(0, 16) : '',
+            versionUpdate: ecoData.versionUpdate
           }));
         }
       } catch (error) {
@@ -265,7 +290,8 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initi
   }, [form.ecoType, form.productId, isOpen]);
 
   useEffect(() => {
-    if (!isOpen || !ecoId || started) {
+    const activeEcoId = ecoId ?? initialEcoId ?? null;
+    if (!isOpen || !activeEcoId || started) {
       return;
     }
 
@@ -293,7 +319,7 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initi
                 newAttachments: string | object | null;
               };
             };
-          }>(`/api/ecos/${ecoId}/draft/product`);
+          }>(`/api/ecos/${activeEcoId}/draft/product`);
 
           const base = response.data?.draft?.base;
           const draft = response.data?.draft?.draft;
@@ -346,7 +372,7 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initi
                 workCenter: string | null;
               }>;
             };
-          }>(`/api/ecos/${ecoId}/draft/bom`);
+          }>(`/api/ecos/${activeEcoId}/draft/bom`);
 
           setBomDraft({
             components:
@@ -376,7 +402,7 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initi
     };
 
     loadDraft();
-  }, [ecoId, form.ecoType, form.productId, form.bomId, isOpen, started]);
+  }, [ecoId, initialEcoId, form.ecoType, form.productId, form.bomId, isOpen, started]);
 
   const updateField = (field: keyof EcoFormState) =>
     (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -560,7 +586,11 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initi
     (form.ecoType !== 'bom' || form.bomId);
 
   useEffect(() => {
-    if (!isOpen || started || ecoId || autoCreatedRef.current || autoCreating) {
+    if (!isOpen || started || ecoId || initialEcoId || autoCreatedRef.current || autoCreating) {
+      return;
+    }
+
+    if (manualCreateRef.current) {
       return;
     }
 
@@ -568,31 +598,43 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initi
       return;
     }
 
+    if (autoCreatePromiseRef.current) {
+      return;
+    }
+
     const autoCreate = async () => {
       setAutoCreating(true);
       setAutoCreateError(null);
-      try {
-        const payload = buildPayload();
-        const response = await apiFetch<{ eco: { id: number } }>('/api/ecos', {
-          method: 'POST',
-          body: payload
+      const payload = buildPayload();
+      const createPromise = apiFetch<{ eco: { id: number } }>('/api/ecos', {
+        method: 'POST',
+        body: payload
+      })
+        .then((response) => {
+          const createdEcoId = response.data?.eco?.id ?? null;
+          if (createdEcoId) {
+            setEcoId(createdEcoId);
+            autoCreatedRef.current = true;
+          }
+          return createdEcoId;
+        })
+        .catch((error) => {
+          const messageText =
+            error instanceof ApiError ? error.message : 'Failed to create draft ECO';
+          setAutoCreateError(messageText);
+          return null;
+        })
+        .finally(() => {
+          autoCreatePromiseRef.current = null;
+          setAutoCreating(false);
         });
-        const createdEcoId = response.data?.eco?.id ?? null;
-        if (createdEcoId) {
-          setEcoId(createdEcoId);
-          autoCreatedRef.current = true;
-        }
-      } catch (error) {
-        const messageText =
-          error instanceof ApiError ? error.message : 'Failed to create draft ECO';
-        setAutoCreateError(messageText);
-      } finally {
-        setAutoCreating(false);
-      }
+
+      autoCreatePromiseRef.current = createPromise;
+      await createPromise;
     };
 
     autoCreate();
-  }, [autoCreateReady, autoCreating, ecoId, isOpen, started]);
+  }, [autoCreateReady, autoCreating, ecoId, initialEcoId, isOpen, started]);
 
   const saveDraftChanges = async (workingEcoId: number) => {
     if (!draftTouched) {
@@ -650,14 +692,22 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initi
       setMessage({ type: 'error', text: validationError });
       return;
     }
+    if (manualCreateRef.current) {
+      return;
+    }
 
+    manualCreateRef.current = true;
     setSubmitting(true);
     setMessage(null);
 
     try {
       const payload = buildPayload();
 
-      let workingEcoId = ecoId;
+      let workingEcoId = ecoId ?? initialEcoId ?? null;
+
+      if (!workingEcoId && autoCreatePromiseRef.current) {
+        workingEcoId = await autoCreatePromiseRef.current;
+      }
 
       if (!workingEcoId) {
         const response = await apiFetch<{ eco: { id: number } }>('/api/ecos', {
@@ -671,6 +721,9 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initi
           method: 'PATCH',
           body: payload
         });
+        if (!ecoId && workingEcoId) {
+          setEcoId(workingEcoId);
+        }
       }
 
       if (workingEcoId) {
@@ -686,6 +739,7 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initi
       setMessage({ type: 'error', text: messageText });
     } finally {
       setSubmitting(false);
+      manualCreateRef.current = false;
     }
   };
 
@@ -695,13 +749,21 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initi
       setMessage({ type: 'error', text: validationError });
       return false;
     }
+    if (manualCreateRef.current) {
+      return false;
+    }
 
+    manualCreateRef.current = true;
     setSubmitting(true);
     setMessage(null);
 
     try {
-      let workingEcoId = ecoId;
+      let workingEcoId = ecoId ?? initialEcoId ?? null;
       const payload = buildPayload();
+
+      if (!workingEcoId && autoCreatePromiseRef.current) {
+        workingEcoId = await autoCreatePromiseRef.current;
+      }
 
       if (!workingEcoId) {
         const response = await apiFetch<{ eco: { id: number } }>('/api/ecos', {
@@ -715,6 +777,9 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initi
           method: 'PATCH',
           body: payload
         });
+        if (!ecoId && workingEcoId) {
+          setEcoId(workingEcoId);
+        }
       }
 
       if (!workingEcoId) {
@@ -734,6 +799,61 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initi
         error instanceof ApiError ? error.message : 'Failed to start ECO';
       setMessage({ type: 'error', text: messageText });
       return false;
+    } finally {
+      setSubmitting(false);
+      manualCreateRef.current = false;
+    }
+  };
+
+  const handleApprove = async () => {
+    const workingEcoId = ecoId ?? initialEcoId;
+    if (!workingEcoId) return;
+
+    setSubmitting(true);
+    setMessage(null);
+    try {
+      await apiFetch(`/api/ecos/${workingEcoId}/approve`, { method: 'POST' });
+      setMessage({ type: 'success', text: 'ECO approved successfully.' });
+      onComplete?.();
+      onClose();
+    } catch (error) {
+      setMessage({ type: 'error', text: error instanceof ApiError ? error.message : 'Failed to approve ECO' });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleValidate = async () => {
+    const workingEcoId = ecoId ?? initialEcoId;
+    if (!workingEcoId) return;
+
+    setSubmitting(true);
+    setMessage(null);
+    try {
+      await apiFetch(`/api/ecos/${workingEcoId}/validate`, { method: 'POST' });
+      setMessage({ type: 'success', text: 'ECO validated successfully.' });
+      onComplete?.();
+      onClose();
+    } catch (error) {
+      setMessage({ type: 'error', text: error instanceof ApiError ? error.message : 'Failed to validate ECO' });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleReject = async () => {
+    const workingEcoId = ecoId ?? initialEcoId;
+    if (!workingEcoId) return;
+
+    setSubmitting(true);
+    setMessage(null);
+    try {
+      await apiFetch(`/api/ecos/${workingEcoId}/reject`, { method: 'POST' });
+      setMessage({ type: 'success', text: 'ECO rejected and moved back to draft.' });
+      onComplete?.();
+      onClose();
+    } catch (error) {
+      setMessage({ type: 'error', text: error instanceof ApiError ? error.message : 'Failed to reject ECO' });
     } finally {
       setSubmitting(false);
     }
@@ -760,11 +880,44 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initi
     }
   };
 
-  const disableInputs = submitting || started;
+  const scrollToChanges = () => {
+    if (changesRef.current) {
+      changesRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
+  const handleShowChanges = () => {
+    setReviewTab('changes');
+    requestAnimationFrame(scrollToChanges);
+  };
+
+  const handleShowApproval = () => {
+    setReviewTab('approval');
+  };
+
+  const handleOpenSource = () => {
+    if (!form.ecoType || !form.productId) {
+      return;
+    }
+    const selectedProduct = products.find(
+      (product) => String(product.productId) === form.productId
+    );
+    const searchValue = selectedProduct?.productCode || selectedProduct?.productName;
+    const params = new URLSearchParams();
+    if (searchValue) {
+      params.set('q', searchValue);
+    }
+    const target = form.ecoType === 'bom' ? '/boms' : '/products';
+    const path = params.toString() ? `${target}?${params.toString()}` : target;
+    router.push(path);
+  };
+
+  const disableInputs = submitting || started || !canEdit;
   const disableSave = disableInputs || isSaved;
   const disableStart = disableInputs || !isSaved;
   const disableDraftInputs = disableInputs || !ecoId;
   const disableStructuralInputs = disableInputs || isSaved;
+  const canOpenSource = Boolean(form.ecoType && form.productId);
 
   if (!isOpen) {
     return null;
@@ -778,26 +931,66 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initi
             <p className="text-xs font-semibold uppercase tracking-widest text-emerald-600">
               Engineering Change Order
             </p>
-            <h2 className="text-xl font-semibold text-gray-900">New ECO</h2>
-            <p className="text-xs text-gray-500">Stage: New</p>
+            <h2 className="text-xl font-semibold text-gray-900">{eco?.status === 'applied' ? 'ECO Applied' : initialEcoId ? 'ECO Details' : 'New ECO'}</h2>
+            <p className="text-xs text-gray-500">Stage: {eco?.currentStage?.name || 'New'}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={handleStart}
-              disabled={disableStart}
-              className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-300"
-            >
-              Start
-            </button>
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={disableSave}
-              className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:border-emerald-500 hover:text-emerald-700 disabled:cursor-not-allowed disabled:text-gray-400"
-            >
-              Save
-            </button>
+            {started && eco?.status === 'in_progress' && canApprove && (
+              <>
+                {eco?.currentStage?.approvalRequired ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleApprove}
+                      disabled={submitting}
+                      className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-300"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleReject}
+                      disabled={submitting}
+                      className="rounded-md bg-rose-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-rose-700 disabled:cursor-not-allowed disabled:bg-rose-300"
+                    >
+                      Reject
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleValidate}
+                    disabled={submitting}
+                    className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-300"
+                  >
+                    Validate
+                  </button>
+                )}
+              </>
+            )}
+            {started && eco?.status === 'in_progress' && !canApprove && (
+              <span className="text-xs font-semibold text-gray-500">Awaiting approval</span>
+            )}
+            {!started && canEdit && (
+              <button
+                type="button"
+                onClick={handleStart}
+                disabled={disableStart}
+                className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-300"
+              >
+                Start
+              </button>
+            )}
+            {!started && canEdit && (
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={disableSave}
+                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:border-emerald-500 hover:text-emerald-700 disabled:cursor-not-allowed disabled:text-gray-400"
+              >
+                Save
+              </button>
+            )}
             <button
               type="button"
               onClick={handleCloseRequest}
@@ -819,6 +1012,41 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initi
               }`}
             >
               {message.text}
+            </div>
+          )}
+
+          {started && (
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handleShowApproval}
+                className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
+                  reviewTab === 'approval'
+                    ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                    : 'border-slate-200 text-slate-600 hover:border-emerald-200 hover:text-emerald-700'
+                }`}
+              >
+                Approval
+              </button>
+              <button
+                type="button"
+                onClick={handleOpenSource}
+                disabled={!canOpenSource}
+                className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 transition-colors hover:border-emerald-200 hover:text-emerald-700 disabled:cursor-not-allowed disabled:text-slate-300"
+              >
+                {form.ecoType === 'bom' ? 'Open Bill of Materials' : 'Open Product'}
+              </button>
+              <button
+                type="button"
+                onClick={handleShowChanges}
+                className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
+                  reviewTab === 'changes'
+                    ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                    : 'border-slate-200 text-slate-600 hover:border-emerald-200 hover:text-emerald-700'
+                }`}
+              >
+                Changes
+              </button>
             </div>
           )}
 
@@ -978,290 +1206,336 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initi
             </div>
           )}
 
-          <div className="mt-6 border-t border-gray-200 pt-5">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <h3 className="text-sm font-semibold text-gray-900">Draft Changes</h3>
-                <p className="text-xs text-gray-500">
-                  Update the draft details for the selected ECO type.
-                </p>
-              </div>
-              {draftTouched && (
-                <span className="rounded-full bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-700">
-                  Unsaved changes
-                </span>
-              )}
-            </div>
-
-            {!ecoId && (
-              <p className="mt-3 text-xs text-gray-500">
-                Save the ECO first to load and edit draft changes.
-              </p>
-            )}
-
-            {autoCreateError && (
-              <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-                {autoCreateError}
-              </div>
-            )}
-
-            {draftError && (
-              <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-                {draftError}
-              </div>
-            )}
-
-            {draftLoading ? (
-              <div className="mt-4 space-y-6">
-                {form.ecoType === 'product' ? (
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="sm:col-span-2 space-y-2">
-                      <Skeleton className="h-4 w-24" />
-                      <Skeleton className="h-9 w-full" />
-                    </div>
-                    <div className="space-y-2">
-                      <Skeleton className="h-4 w-20" />
-                      <Skeleton className="h-9 w-full" />
-                    </div>
-                    <div className="space-y-2">
-                      <Skeleton className="h-4 w-20" />
-                      <Skeleton className="h-9 w-full" />
-                    </div>
-                    <div className="sm:col-span-2 space-y-2">
-                      <Skeleton className="h-4 w-24" />
-                      <Skeleton className="h-24 w-full" />
-                    </div>
+          <div ref={changesRef} className="mt-6 border-t border-gray-200 pt-5">
+            {started ? (
+              <div className="space-y-4">
+                {reviewTab === 'approval' && (
+                  <div className="rounded-lg border border-emerald-100 bg-emerald-50/60 px-4 py-3 text-sm text-emerald-800">
+                    Review the header fields above and the proposed changes before approving. Use the action
+                    buttons in the header to approve, validate, or reject this ECO.
                   </div>
-                ) : (
-                  <div className="space-y-6">
-                    <div className="space-y-3">
-                      <Skeleton className="h-4 w-24" />
-                      <div className="rounded-md border border-gray-200 overflow-hidden">
-                        <div className="bg-gray-50 px-3 py-2 border-b border-gray-200">
-                          <div className="grid grid-cols-12 gap-2">
-                            <Skeleton className="col-span-8 h-3 w-16" />
-                            <Skeleton className="col-span-4 h-3 w-12" />
-                          </div>
-                        </div>
-                        <div className="p-3 space-y-3">
-                          <div className="grid grid-cols-12 gap-2">
-                            <div className="col-span-8 space-y-1">
-                              <Skeleton className="h-4 w-32" />
-                              <Skeleton className="h-3 w-16" />
-                            </div>
-                            <Skeleton className="col-span-4 h-8 w-full" />
-                          </div>
-                          <div className="grid grid-cols-12 gap-2">
-                            <div className="col-span-8 space-y-1">
-                              <Skeleton className="h-4 w-40" />
-                              <Skeleton className="h-3 w-16" />
-                            </div>
-                            <Skeleton className="col-span-4 h-8 w-full" />
-                          </div>
-                        </div>
-                      </div>
+                )}
+                {reviewTab === 'changes' && (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-semibold text-gray-900">Proposed Changes</h3>
+                      <span className="rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700">
+                        Review Mode
+                      </span>
                     </div>
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-center">
-                        <Skeleton className="h-4 w-24" />
-                        <Skeleton className="h-6 w-24" />
-                      </div>
-                      <div className="rounded-md border border-gray-200 overflow-hidden">
-                        <div className="bg-gray-50 px-3 py-2 border-b border-gray-200">
-                          <div className="grid grid-cols-12 gap-2">
-                            <Skeleton className="col-span-5 h-3 w-16" />
-                            <Skeleton className="col-span-3 h-3 w-16" />
-                            <Skeleton className="col-span-4 h-3 w-12" />
-                          </div>
-                        </div>
-                        <div className="p-3 space-y-3">
-                          <div className="grid grid-cols-12 gap-2">
-                            <Skeleton className="col-span-5 h-8 w-full" />
-                            <Skeleton className="col-span-3 h-8 w-full" />
-                            <Skeleton className="col-span-4 h-8 w-full" />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                    {(ecoId || initialEcoId) && (
+                      <EcoChangesView
+                        ecoId={ecoId ?? initialEcoId!}
+                        ecoType={form.ecoType as 'product' | 'bom'}
+                      />
+                    )}
+                  </>
                 )}
               </div>
             ) : (
               <>
-                {form.ecoType === 'product' && (
-                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                <div className="sm:col-span-2">
-                  <label className="text-sm font-medium text-gray-700">
-                    Product Name
-                  </label>
-                  <input
-                    type="text"
-                    value={productDraft.newProductName}
-                    onChange={updateProductDraftField('newProductName')}
-                    disabled={disableDraftInputs}
-                    className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:bg-gray-100"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-700">Sale Price</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={productDraft.newSalePrice}
-                    onChange={updateProductDraftField('newSalePrice')}
-                    disabled={disableDraftInputs}
-                    className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:bg-gray-100"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-700">Cost Price</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={productDraft.newCostPrice}
-                    onChange={updateProductDraftField('newCostPrice')}
-                    disabled={disableDraftInputs}
-                    className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:bg-gray-100"
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <label className="text-sm font-medium text-gray-700">Attachments</label>
-                  <textarea
-                    value={productDraft.newAttachments}
-                    onChange={updateProductDraftField('newAttachments')}
-                    disabled={disableDraftInputs}
-                    rows={3}
-                    className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:bg-gray-100"
-                  />
-                </div>
-              </div>
-            )}
-
-            {form.ecoType === 'bom' && (
-              <div className="mt-4 space-y-4">
-                <div>
-                  <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                    Components
-                  </h4>
-                  {bomDraft.components.length === 0 ? (
-                    <p className="mt-2 text-xs text-gray-500">No components available.</p>
-                  ) : (
-                    <div className="mt-2 overflow-hidden rounded-md border border-gray-200">
-                      <div className="grid grid-cols-12 gap-2 bg-gray-50 px-3 py-2 text-[11px] font-semibold uppercase text-gray-500">
-                        <div className="col-span-8">Component</div>
-                        <div className="col-span-4">Quantity</div>
-                      </div>
-                      <div className="divide-y divide-gray-100">
-                        {bomDraft.components.map((component, index) => (
-                          <div
-                            key={`${component.componentProductVersionId}-${index}`}
-                            className="grid grid-cols-12 gap-2 px-3 py-2 text-sm text-gray-700"
-                          >
-                            <div className="col-span-8">
-                              <div className="font-semibold text-gray-900">
-                                {component.productName}
-                              </div>
-                              <div className="text-xs text-gray-500">{component.productCode}</div>
-                            </div>
-                            <div className="col-span-4">
-                              <input
-                                type="number"
-                                step="0.01"
-                                value={component.quantity}
-                                onChange={(event) =>
-                                  updateBomComponent(index, event.target.value)
-                                }
-                                disabled={disableDraftInputs}
-                                className="w-full rounded-md border border-gray-300 px-2 py-1 text-sm text-gray-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:bg-gray-100"
-                              />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                      Operations
-                    </h4>
-                    <button
-                      type="button"
-                      onClick={addBomOperation}
-                      disabled={disableDraftInputs}
-                      className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700 hover:border-emerald-300 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400"
-                    >
-                      Add Operation
-                    </button>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-900">Draft Changes</h3>
+                    <p className="text-xs text-gray-500">
+                      Update the draft details for the selected ECO type.
+                    </p>
                   </div>
-                  {bomDraft.operations.length === 0 ? (
-                    <p className="mt-2 text-xs text-gray-500">No operations available.</p>
-                  ) : (
-                    <div className="mt-2 overflow-hidden rounded-md border border-gray-200">
-                      <div className="grid grid-cols-12 gap-2 bg-gray-50 px-3 py-2 text-[11px] font-semibold uppercase text-gray-500">
-                        <div className="col-span-5">Operation</div>
-                        <div className="col-span-3">Work Center</div>
-                        <div className="col-span-4">Minutes</div>
+                  {draftTouched && (
+                    <span className="rounded-full bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-700">
+                      Unsaved changes
+                    </span>
+                  )}
+                </div>
+
+                {!ecoId && (
+                  <p className="mt-3 text-xs text-gray-500">
+                    Save the ECO first to load and edit draft changes.
+                  </p>
+                )}
+
+                {autoCreateError && (
+                  <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                    {autoCreateError}
+                  </div>
+                )}
+
+                {draftError && (
+                  <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                    {draftError}
+                  </div>
+                )}
+
+                {draftLoading ? (
+                  <div className="mt-4 space-y-6">
+                    {form.ecoType === 'product' ? (
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="sm:col-span-2 space-y-2">
+                          <Skeleton className="h-4 w-24" />
+                          <Skeleton className="h-9 w-full" />
+                        </div>
+                        <div className="space-y-2">
+                          <Skeleton className="h-4 w-20" />
+                          <Skeleton className="h-9 w-full" />
+                        </div>
+                        <div className="space-y-2">
+                          <Skeleton className="h-4 w-20" />
+                          <Skeleton className="h-9 w-full" />
+                        </div>
+                        <div className="sm:col-span-2 space-y-2">
+                          <Skeleton className="h-4 w-24" />
+                          <Skeleton className="h-24 w-full" />
+                        </div>
                       </div>
-                      <div className="divide-y divide-gray-100">
-                        {bomDraft.operations.map((operation, index) => (
-                          <div
-                            key={operation.localId}
-                            className="grid grid-cols-12 gap-2 px-3 py-2 text-sm text-gray-700"
-                          >
-                            <div className="col-span-5">
-                              <input
-                                type="text"
-                                value={operation.operationName}
-                                onChange={(event) =>
-                                  updateBomOperation(index, 'operationName', event.target.value)
-                                }
-                                disabled={disableDraftInputs}
-                                className="w-full rounded-md border border-gray-300 px-2 py-1 text-sm text-gray-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:bg-gray-100"
-                              />
+                    ) : (
+                      <div className="space-y-6">
+                        <div className="space-y-3">
+                          <Skeleton className="h-4 w-24" />
+                          <div className="rounded-md border border-gray-200 overflow-hidden">
+                            <div className="bg-gray-50 px-3 py-2 border-b border-gray-200">
+                              <div className="grid grid-cols-12 gap-2">
+                                <Skeleton className="col-span-8 h-3 w-16" />
+                                <Skeleton className="col-span-4 h-3 w-12" />
+                              </div>
                             </div>
-                            <div className="col-span-3">
-                              <input
-                                type="text"
-                                value={operation.workCenter}
-                                onChange={(event) =>
-                                  updateBomOperation(index, 'workCenter', event.target.value)
-                                }
-                                disabled={disableDraftInputs}
-                                className="w-full rounded-md border border-gray-300 px-2 py-1 text-sm text-gray-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:bg-gray-100"
-                              />
-                            </div>
-                            <div className="col-span-4">
-                              <div className="flex items-center gap-2">
-                                <input
-                                  type="number"
-                                  value={operation.timeMinutes}
-                                  onChange={(event) =>
-                                    updateBomOperation(index, 'timeMinutes', event.target.value)
-                                  }
-                                  disabled={disableDraftInputs}
-                                  className="w-full rounded-md border border-gray-300 px-2 py-1 text-sm text-gray-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:bg-gray-100"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => removeBomOperation(index)}
-                                  disabled={disableDraftInputs}
-                                  className="rounded-md border border-gray-200 px-2 py-1 text-xs font-semibold text-gray-500 hover:border-gray-300 disabled:cursor-not-allowed disabled:text-gray-300"
-                                >
-                                  Remove
-                                </button>
+                            <div className="p-3 space-y-3">
+                              <div className="grid grid-cols-12 gap-2">
+                                <div className="col-span-8 space-y-1">
+                                  <Skeleton className="h-4 w-32" />
+                                  <Skeleton className="h-3 w-16" />
+                                </div>
+                                <Skeleton className="col-span-4 h-8 w-full" />
+                              </div>
+                              <div className="grid grid-cols-12 gap-2">
+                                <div className="col-span-8 space-y-1">
+                                  <Skeleton className="h-4 w-40" />
+                                  <Skeleton className="h-3 w-16" />
+                                </div>
+                                <Skeleton className="col-span-4 h-8 w-full" />
                               </div>
                             </div>
                           </div>
-                        ))}
+                        </div>
+                        <div className="space-y-3">
+                          <div className="flex justify-between items-center">
+                            <Skeleton className="h-4 w-24" />
+                            <Skeleton className="h-6 w-24" />
+                          </div>
+                          <div className="rounded-md border border-gray-200 overflow-hidden">
+                            <div className="bg-gray-50 px-3 py-2 border-b border-gray-200">
+                              <div className="grid grid-cols-12 gap-2">
+                                <Skeleton className="col-span-5 h-3 w-16" />
+                                <Skeleton className="col-span-3 h-3 w-16" />
+                                <Skeleton className="col-span-4 h-3 w-12" />
+                              </div>
+                            </div>
+                            <div className="p-3 space-y-3">
+                              <div className="grid grid-cols-12 gap-2">
+                                <Skeleton className="col-span-5 h-8 w-full" />
+                                <Skeleton className="col-span-3 h-8 w-full" />
+                                <Skeleton className="col-span-4 h-8 w-full" />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
                       </div>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    {form.ecoType === 'product' && (
+                      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                    <div className="sm:col-span-2">
+                      <label className="text-sm font-medium text-gray-700">
+                        Product Name
+                      </label>
+                      <input
+                        type="text"
+                        value={productDraft.newProductName}
+                        onChange={updateProductDraftField('newProductName')}
+                        disabled={disableDraftInputs}
+                        className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:bg-gray-100"
+                      />
                     </div>
-                  )}
-                </div>
-              </div>
-            )}
+                    <div>
+                      <label className="text-sm font-medium text-gray-700">Sale Price</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={productDraft.newSalePrice}
+                        onChange={updateProductDraftField('newSalePrice')}
+                        disabled={disableDraftInputs}
+                        className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:bg-gray-100"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-700">Cost Price</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={productDraft.newCostPrice}
+                        onChange={updateProductDraftField('newCostPrice')}
+                        disabled={disableDraftInputs}
+                        className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:bg-gray-100"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="text-sm font-medium text-gray-700">Attachments</label>
+                      <textarea
+                        value={productDraft.newAttachments}
+                        onChange={updateProductDraftField('newAttachments')}
+                        disabled={disableDraftInputs}
+                        rows={3}
+                        className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:bg-gray-100"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {form.ecoType === 'bom' && (
+                  <div className="mt-4 space-y-4">
+                    <div>
+                      <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        Components
+                      </h4>
+                      {bomDraft.components.length === 0 ? (
+                        <p className="mt-2 text-xs text-gray-500">No components available.</p>
+                      ) : (
+                        <div className="mt-2 overflow-hidden rounded-md border border-gray-200">
+                          <div className="grid grid-cols-12 gap-2 bg-gray-50 px-3 py-2 text-[11px] font-semibold uppercase text-gray-500">
+                            <div className="col-span-8">Component</div>
+                            <div className="col-span-4">Quantity</div>
+                          </div>
+                          <div className="divide-y divide-gray-100">
+                            {bomDraft.components.map((component, index) => (
+                              <div
+                                key={`${component.componentProductVersionId}-${index}`}
+                                className="flex flex-col sm:grid sm:grid-cols-12 gap-2 px-3 py-3 sm:py-2 text-sm text-gray-700"
+                              >
+                                <div className="col-span-8">
+                                  <div className="font-bold text-gray-900 leading-tight">
+                                    {component.productName}
+                                  </div>
+                                  <div className="text-[10px] font-bold text-gray-400 uppercase tracking-tight mt-0.5">{component.productCode}</div>
+                                </div>
+                                <div className="col-span-4 flex items-center">
+                                  <span className="sm:hidden text-[10px] font-bold text-gray-400 uppercase tracking-tight mr-2">Qty:</span>
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    value={component.quantity}
+                                    onChange={(event) =>
+                                      updateBomComponent(index, event.target.value)
+                                    }
+                                    disabled={disableDraftInputs}
+                                    className="w-full h-9 rounded-lg border border-gray-300 px-3 py-1 text-sm text-gray-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-gray-50"
+                                  />
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="text-[11px] font-bold uppercase tracking-widest text-gray-400">
+                          Operations
+                        </h4>
+                        <button
+                          type="button"
+                          onClick={addBomOperation}
+                          disabled={disableDraftInputs}
+                          className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 hover:border-emerald-300 hover:bg-emerald-100 transition-all disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400"
+                        >
+                          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+                          </svg>
+                          Add Operation
+                        </button>
+                      </div>
+                      {bomDraft.operations.length === 0 ? (
+                        <div className="mt-2 flex flex-col items-center justify-center py-8 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/50">
+                          <p className="text-xs font-medium text-gray-400 uppercase tracking-tight">No operations added</p>
+                        </div>
+                      ) : (
+                        <div className="mt-2 overflow-hidden rounded-xl border border-gray-200 shadow-sm">
+                          <div className="hidden sm:grid grid-cols-12 gap-2 bg-gray-50 px-3 py-2.5 text-[10px] font-bold uppercase tracking-widest text-gray-400 border-b border-gray-200">
+                            <div className="col-span-5">Operation</div>
+                            <div className="col-span-3">Work Center</div>
+                            <div className="col-span-4 text-right pr-12">Minutes</div>
+                          </div>
+                          <div className="divide-y divide-gray-100">
+                            {bomDraft.operations.map((operation, index) => (
+                              <div
+                                key={operation.localId}
+                                className="flex flex-col sm:grid sm:grid-cols-12 gap-3 sm:gap-2 px-4 py-4 sm:px-3 sm:py-2.5 text-sm text-gray-700 hover:bg-gray-50/50 transition-colors"
+                              >
+                                <div className="col-span-5">
+                                  <span className="sm:hidden text-[10px] font-bold text-gray-400 uppercase tracking-tight mb-1 block">Operation Name</span>
+                                  <input
+                                    type="text"
+                                    value={operation.operationName}
+                                    placeholder="e.g. Assembly"
+                                    onChange={(event) =>
+                                      updateBomOperation(index, 'operationName', event.target.value)
+                                    }
+                                    disabled={disableDraftInputs}
+                                    className="w-full h-9 rounded-lg border border-gray-300 px-3 py-1 text-sm text-gray-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-gray-50"
+                                  />
+                                </div>
+                                <div className="col-span-3">
+                                  <span className="sm:hidden text-[10px] font-bold text-gray-400 uppercase tracking-tight mb-1 block">Work Center</span>
+                                  <input
+                                    type="text"
+                                    value={operation.workCenter}
+                                    placeholder="e.g. WC-01"
+                                    onChange={(event) =>
+                                      updateBomOperation(index, 'workCenter', event.target.value)
+                                    }
+                                    disabled={disableDraftInputs}
+                                    className="w-full h-9 rounded-lg border border-gray-300 px-3 py-1 text-sm text-gray-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-gray-50"
+                                  />
+                                </div>
+                                <div className="col-span-4">
+                                  <div className="flex items-center gap-2">
+                                    <div className="flex-1">
+                                      <span className="sm:hidden text-[10px] font-bold text-gray-400 uppercase tracking-tight mb-1 block">Minutes</span>
+                                      <input
+                                        type="number"
+                                        value={operation.timeMinutes}
+                                        placeholder="0"
+                                        onChange={(event) =>
+                                          updateBomOperation(index, 'timeMinutes', event.target.value)
+                                        }
+                                        disabled={disableDraftInputs}
+                                        className="w-full h-9 rounded-lg border border-gray-300 px-3 py-1 text-sm text-gray-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-gray-50"
+                                      />
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => removeBomOperation(index)}
+                                      disabled={disableDraftInputs}
+                                      className="mt-5 sm:mt-0 flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-400 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 transition-all disabled:cursor-not-allowed"
+                                      title="Remove operation"
+                                    >
+                                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                      </svg>
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+                  </>
+                )}
               </>
             )}
           </div>

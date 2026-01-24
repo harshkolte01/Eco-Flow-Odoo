@@ -10,11 +10,38 @@ const validatePositiveInt = (fieldName) => (value) => {
   return null;
 };
 
+const VALID_BOM_STATUSES = ['active', 'archived'];
+
+const validateStatusList = (value) => {
+  if (typeof value !== 'string') {
+    return 'status must be a comma-separated string';
+  }
+  const statuses = value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  if (statuses.length === 0) {
+    return 'status must include at least one value';
+  }
+  const invalid = statuses.filter((status) => !VALID_BOM_STATUSES.includes(status));
+  if (invalid.length > 0) {
+    return `status must be one of: ${VALID_BOM_STATUSES.join(', ')}`;
+  }
+  return null;
+};
+
 export const bomListQuerySchema = {
   productId: {
-    required: true,
+    required: false,
     validator: validatePositiveInt('productId')
+  },
+  status: {
+    required: false,
+    validator: validateStatusList
+  },
+  q: {
+    required: false
   }
 };
 
-export default { bomListQuerySchema };
+export default { bomListQuerySchema, VALID_BOM_STATUSES };

@@ -10,6 +10,9 @@ import usersRoutes from './modules/users/users.routes.js';
 import ecosRoutes from './modules/ecos/ecos.routes.js';
 import productsRoutes from './modules/products/products.routes.js';
 import bomsRoutes from './modules/boms/boms.routes.js';
+import reportsRoutes from './modules/reports/reports.routes.js';
+import stagesRoutes from './modules/stages/stages.routes.js';
+import auditLogsRoutes from './modules/audit-logs/audit-logs.routes.js';
 
 // Initialize Express app
 const app = express();
@@ -54,6 +57,9 @@ app.use('/api/users', usersRoutes);
 app.use('/api/ecos', ecosRoutes);
 app.use('/api/products', productsRoutes);
 app.use('/api/boms', bomsRoutes);
+app.use('/api/reports', reportsRoutes);
+app.use('/api/stages', stagesRoutes);
+app.use('/api/audit-logs', auditLogsRoutes);
 
 // 404 handler
 app.use((req, res) => {
@@ -75,6 +81,9 @@ app.listen(PORT, () => {
   console.log(`🧾 ECO endpoints: http://localhost:${PORT}/api/ecos`);
   console.log(`📦 Products endpoints: http://localhost:${PORT}/api/products`);
   console.log(`🧩 BoMs endpoints: http://localhost:${PORT}/api/boms`);
+  console.log(`📈 Reports endpoints: http://localhost:${PORT}/api/reports`);
+  console.log(`🧭 Stage endpoints: http://localhost:${PORT}/api/stages`);
+  console.log(`🧾 Audit endpoints: http://localhost:${PORT}/api/audit-logs`);
 });
 
 // Graceful shutdown

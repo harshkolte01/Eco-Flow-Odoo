@@ -2,23 +2,17 @@
 
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { useAuth } from '@/context/AuthContext';
-import { Header } from '@/components/Header';
-import { Footer } from '@/components/Footer';
+import { AppShell } from '@/components/AppShell';
 import { useEffect, useMemo, useState } from 'react';
 import { EcoCreateModal } from '@/components/EcoCreateModal';
 import { apiFetch, ApiError } from '@/lib/api';
 import { EcoListPanel, EcoListItem } from '@/components/EcoListPanel';
-
 export default function Home() {
   return (
     <ProtectedRoute>
-      <div className="flex flex-col min-h-screen">
-        <Header />
-        <main className="flex-grow">
-          <Dashboard />
-        </main>
-        <Footer />
-      </div>
+      <AppShell>
+        <Dashboard />
+      </AppShell>
     </ProtectedRoute>
   );
 }
@@ -29,6 +23,7 @@ function Dashboard() {
   const isAdmin = role === 'admin';
   const isOperations = role === 'operations';
   const isEngineering = role === 'engineering';
+  const canCreateEco = isEngineering || isAdmin;
   const [searchQuery, setSearchQuery] = useState('');
   const [isEcoModalOpen, setIsEcoModalOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
@@ -105,6 +100,7 @@ function Dashboard() {
             productCode: string;
             productName: string;
             status: 'active' | 'archived';
+            updatedAt?: string | null;
           }[];
         }>(productPath)
       ]);
@@ -131,10 +127,11 @@ function Dashboard() {
             title: product.productName || product.productCode,
             ecoType: undefined,
             status: product.status,
+            updatedAt: product.updatedAt ?? null,
+            productUpdatedAt: product.updatedAt ?? null,
             effectiveDate: null,
             versionUpdate: true,
             createdAt: null,
-            updatedAt: null,
             currentStage: null,
             product: {
               id: product.productId,
@@ -158,88 +155,124 @@ function Dashboard() {
     loadOverview();
   }, [activeSearch, refreshKey, user?.role]);
 
+  const pendingApprovals = useMemo(() => {
+    if (isEngineering || isOperations) return [];
+    return ecoItems.filter(eco => 
+      eco.status === 'in_progress' && 
+      eco.currentStage?.approvalRequired === true
+    );
+  }, [ecoItems, isEngineering, isOperations]);
+
   return (
-    <div className="bg-gray-50">
-      {/* Sub Header Content - Defined inside Home Page */}
-      <div className="sticky top-12 z-40 bg-gray-50/50 backdrop-blur-sm border-b border-gray-200">
-        <div className="flex h-12 items-center justify-between px-4">
-          <div className="flex items-center gap-4">
-            {!isOperations && (
+    <div className="bg-gray-50 min-h-full">
+      {/* Sub Header */}
+      <div className="sticky top-0 z-40 border-b border-gray-200 bg-white/95 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:gap-4 sm:px-6 sm:py-2 lg:px-8">
+          {/* Left side: Action Button */}
+          {canCreateEco && (
+            <div className="flex items-center">
               <button
                 onClick={() => setIsEcoModalOpen(true)}
-                className="px-6 py-1.5 bg-white border border-gray-300 rounded text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 hover:border-emerald-500 active:scale-95 transition-all"
+                className="flex items-center gap-2 rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700"
               >
-                New
-              </button>
-            )}
-          </div>
-
-          <div className="flex-1 max-w-2xl px-8">
-            <form onSubmit={handleSearch} className="relative group">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search..."
-                className="w-full h-9 px-4 py-1.5 bg-white border border-gray-200 rounded text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 transition-all shadow-sm"
-              />
-              <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                <svg className="h-4 w-4 text-gray-400 group-focus-within:text-emerald-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
-              </div>
-            </form>
-          </div>
+                New ECO
+              </button>
+            </div>
+          )}
 
-          <div className="flex items-center gap-1 bg-white border border-gray-300 rounded-md p-1 shadow-sm">
-            <button
-              type="button"
-              onClick={() => setViewMode('list')}
-              aria-pressed={viewMode === 'list'}
-              className={`rounded p-1.5 transition-colors ${
-                viewMode === 'list'
-                  ? 'bg-emerald-50 text-emerald-600'
-                  : 'text-gray-600 hover:text-emerald-600 hover:bg-emerald-50'
-              }`}
-              title="List View"
-            >
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+          {/* Middle: Search bar */}
+          <form onSubmit={handleSearch} className="relative flex-1 min-w-0 sm:max-w-2xl">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search ECOs, products, or codes..."
+              aria-label="Search ECOs, products, or codes"
+              className="h-9 w-full rounded-md border border-gray-300 bg-white pl-10 pr-4 text-sm text-gray-900 placeholder-gray-400 transition-all focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+            />
+            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+              <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('kanban')}
-              aria-pressed={viewMode === 'kanban'}
-              className={`rounded p-1.5 transition-colors ${
-                viewMode === 'kanban'
-                  ? 'bg-emerald-50 text-emerald-600'
-                  : 'text-gray-600 hover:text-emerald-600 hover:bg-emerald-50'
-              }`}
-              title="Kanban View"
-            >
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
-              </svg>
-            </button>
+            </div>
+          </form>
+
+          {/* Right side: View Toggles */}
+          <div className="flex w-full items-center justify-start gap-2 sm:w-auto sm:justify-end sm:ml-auto">
+            <div className="flex items-center gap-1 rounded-md border border-gray-300 bg-white p-1">
+              <button
+                type="button"
+                onClick={() => setViewMode('list')}
+                aria-pressed={viewMode === 'list'}
+                className={`rounded p-1.5 transition-colors ${
+                  viewMode === 'list'
+                    ? 'bg-emerald-50 text-emerald-600'
+                    : 'text-gray-600 hover:bg-emerald-50 hover:text-emerald-600'
+                }`}
+                title="List View"
+              >
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('kanban')}
+                aria-pressed={viewMode === 'kanban'}
+                className={`rounded p-1.5 transition-colors ${
+                  viewMode === 'kanban'
+                    ? 'bg-emerald-50 text-emerald-600'
+                    : 'text-gray-600 hover:bg-emerald-50 hover:text-emerald-600'
+                }`}
+                title="Kanban View"
+              >
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="mb-8 space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
+        {pendingApprovals.length > 0 && (
+          <div className="mb-12">
+            <div className="mb-4">
+              <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <span className="flex h-2 w-2 rounded-full bg-rose-500"></span>
+                Pending Approvals
+              </h2>
+              <p className="text-sm text-gray-500 mt-1">Items requiring your immediate review and sign-off.</p>
+            </div>
+            <EcoListPanel
+              viewMode="list"
+              ecos={pendingApprovals}
+              loading={overviewLoading}
+              error={null}
+              onRetry={refreshEcos}
+              onOpenEco={handleEditDraft}
+              openStatuses={['in_progress']}
+            />
+          </div>
+        )}
+
+        <div className="mb-8">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
             <div>
               <h2 className="text-lg font-semibold text-gray-900">
                 {isOperations ? 'Product Overview' : 'ECO Overview'}
               </h2>
-              <p className="text-xs text-gray-500">
+              <p className="text-sm text-gray-500 mt-1">
                 {isOperations
                   ? 'Active products available for operations.'
                   : 'Track ECOs alongside linked product metadata.'}
               </p>
             </div>
-            <div className="text-xs font-semibold text-gray-500">
+            <div className="text-sm font-medium text-gray-500">
               {overviewItems.length} items
             </div>
           </div>
@@ -249,7 +282,8 @@ function Dashboard() {
             loading={overviewLoading}
             error={overviewError}
             onRetry={refreshEcos}
-            onStartEco={handleEditDraft}
+            onOpenEco={canCreateEco ? handleEditDraft : undefined}
+            openStatuses={canCreateEco ? ['draft'] : []}
           />
         </div>
       </main>
