@@ -56,6 +56,40 @@ enum ApprovalCategory {
   optional
 }
 
+enum RuleType {
+  stage_rule
+  condition_rule
+}
+
+enum RuleOperator {
+  GT
+  LT
+  EQ
+  GTE
+  LTE
+  IN
+  NOT_IN
+  CONTAINS
+  NOT_CONTAINS
+}
+
+enum DelegationStatus {
+  active
+  revoked
+  expired
+}
+
+enum RuleAuditAction {
+  created
+  updated
+  archived
+  condition_added
+  condition_updated
+  condition_deleted
+  approver_added
+  approver_removed
+}
+
 model Role {
   id    Int    @id @default(autoincrement())
   name  String @unique
@@ -77,6 +111,22 @@ model User {
   approvals    EcoApproval[]
   auditLogs    AuditLog[]
   stageApprovers StageApprover[]
+  
+  // Rule management
+  createdRules          ApprovalRule[]     @relation("RuleCreator")
+  updatedRules          ApprovalRule[]     @relation("RuleUpdater")
+  
+  // Delegations
+  delegationsFrom       ApproverDelegation[] @relation("DelegationFrom")
+  delegationsTo         ApproverDelegation[] @relation("DelegationTo")
+  delegationCreations   ApproverDelegation[] @relation("DelegationCreator")
+  
+  // Rule approver assignments
+  ruleApprovers         RuleApprover[]     @relation("RuleApprovers")
+  escalationTargets     RuleApprover[]     @relation("EscalationTarget")
+  
+  // Rule audits
+  ruleAudits            RuleAudit[]        @relation("RuleAudits")
 }
 
 model Product {
@@ -204,6 +254,7 @@ model Eco {
   createdProductVersions ProductVersion[] @relation("ProductVersionCreatedFromEco")
   createdBomVersions BomVersion[]    @relation("BomVersionCreatedFromEco")
   activationLogs VersionActivationLog[]
+  ruleEvaluations RuleEvaluationLog[] @relation("RuleEvaluations")
 
   @@index([productId])
   @@index([bomId])
@@ -323,4 +374,133 @@ model StageApprover {
   @@unique([stageId, userId])
   @@index([stageId])
   @@index([userId])
+}
+
+// ========== APPROVAL RULES SYSTEM (NEW) ==========
+
+model ApprovalRule {
+  id                String            @id @default(cuid())
+  name              String            @unique
+  description       String?
+  ruleType          RuleType          @default(condition_rule)
+  isActive          Boolean           @default(true)
+  priority          Int               @default(100)
+  
+  // Relationships
+  stageIds          Int[]             // JSON array of stage IDs this rule applies to
+  conditions        RuleCondition[]
+  approvers         RuleApprover[]
+  ruleAudits        RuleAudit[]
+  ruleEvaluations   RuleEvaluationLog[]
+  
+  // Audit fields
+  createdById       Int
+  createdBy         User              @relation("RuleCreator", fields: [createdById], references: [id])
+  createdAt         DateTime          @default(now())
+  updatedById       Int?
+  updatedBy         User?             @relation("RuleUpdater", fields: [updatedById], references: [id])
+  updatedAt         DateTime          @updatedAt
+  
+  // Versioning
+  version           Int               @default(1)
+  isArchived        Boolean           @default(false)
+  
+  @@index([isActive, priority])
+  @@index([ruleType])
+  @@index([isArchived])
+}
+
+model RuleCondition {
+  id                String              @id @default(cuid())
+  ruleId            String
+  rule              ApprovalRule        @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  
+  // Condition logic
+  fieldName         String              // "product.salePrice", "eco.type", "product.category"
+  operator          RuleOperator        // GT, LT, EQ, IN, CONTAINS, etc.
+  fieldValue        String              // "1000", "product", "ELECTRONICS"
+  logicalOperator   String              @default("AND")  // AND/OR between conditions
+  
+  createdAt         DateTime            @default(now())
+  
+  @@index([ruleId])
+}
+
+model RuleApprover {
+  id                    String                @id @default(cuid())
+  ruleId                String
+  rule                  ApprovalRule          @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  
+  userId                Int
+  approver              User                  @relation("RuleApprovers", fields: [userId], references: [id])
+  
+  approvalCategory      ApprovalCategory      @default(required)
+  sequence              Int                   @default(1)
+  
+  // Delegation support
+  canDelegate           Boolean               @default(true)
+  escalationUserId      Int?                  // Who to escalate to if this user unavailable
+  escalationUser        User?                 @relation("EscalationTarget", fields: [escalationUserId], references: [id])
+  escalationThresholdDays Int?                // Escalate after N days
+  
+  createdAt             DateTime              @default(now())
+  
+  @@unique([ruleId, userId])
+  @@index([ruleId, userId])
+}
+
+model RuleAudit {
+  id                String            @id @default(cuid())
+  ruleId            String?
+  rule              ApprovalRule?     @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+  action            RuleAuditAction
+  
+  oldValue          String?           // JSON serialized
+  newValue          String?           // JSON serialized
+  
+  performedById     Int
+  performedBy       User              @relation("RuleAudits", fields: [performedById], references: [id])
+  performedAt       DateTime          @default(now())
+  
+  @@index([ruleId])
+  @@index([performedAt])
+}
+
+model ApproverDelegation {
+  id                String            @id @default(cuid())
+  fromUserId        Int               // Original approver
+  fromUser          User              @relation("DelegationFrom", fields: [fromUserId], references: [id])
+  
+  toUserId          Int               // Temporary delegate
+  toUser            User              @relation("DelegationTo", fields: [toUserId], references: [id])
+  
+  startDate         DateTime
+  endDate           DateTime
+  
+  reason            String?
+  status            DelegationStatus  @default(active)
+  
+  createdById       Int
+  createdBy         User              @relation("DelegationCreator", fields: [createdById], references: [id])
+  createdAt         DateTime          @default(now())
+  
+  @@index([fromUserId, startDate, endDate])
+  @@index([toUserId, status])
+}
+
+model RuleEvaluationLog {
+  id                String            @id @default(cuid())
+  ecoId             Int
+  eco               Eco               @relation("RuleEvaluations", fields: [ecoId], references: [id])
+  
+  ruleId            String
+  rule              ApprovalRule      @relation(fields: [ruleId], references: [id])
+  
+  conditionsMet     Boolean
+  evaluatedApprovers String           // JSON array of approver IDs
+  
+  evaluatedAt       DateTime          @default(now())
+  
+  @@index([ecoId])
+  @@index([ruleId])
 }

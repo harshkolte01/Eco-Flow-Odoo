@@ -269,7 +269,7 @@ function SidebarContent({
 
         {isAdmin && settingsItems.length > 0 && (
           <div className="space-y-2">
-            <details className="group">
+            <details className="group" open>
               <summary className="flex cursor-pointer list-none items-center justify-between rounded-md px-2 py-1 text-gray-500 transition-colors hover:bg-gray-100">
                 <span className={`flex items-center ${isExpanded ? 'gap-2' : 'justify-center w-full'}`}>
                   <span className="flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-500">

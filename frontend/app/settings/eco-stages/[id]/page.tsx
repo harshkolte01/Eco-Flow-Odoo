@@ -37,13 +37,7 @@ interface User {
 }
 
 export default function StageDetailPage() {
-  return (
-    <ProtectedRoute>
-      <AppShell>
-        <StageDetailContent />
-      </AppShell>
-    </ProtectedRoute>
-  );
+  return <StageDetailContent />;
 }
 
 function StageDetailContent() {

@@ -115,4 +115,32 @@ export const listBomOverview = async ({ status, q }) => {
   }));
 };
 
-export default { getBomsByProduct, listBomOverview };
+/**
+ * Update BoM Version
+ * STRICT GUARD: Only allowed via ECO process
+ */
+export const updateBomVersion = async (id, data) => {
+  const version = await prisma.bomVersion.findUnique({
+    where: { id },
+    select: { status: true }
+  });
+
+  if (!version) {
+    const error = new Error('BoM version not found');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  if (version.status !== 'draft') {
+    const error = new Error(`Direct updates to ${version.status} versions are strictly prohibited. Use the ECO process.`);
+    error.statusCode = 403;
+    throw error;
+  }
+
+  return prisma.bomVersion.update({
+    where: { id },
+    data
+  });
+};
+
+export default { getBomsByProduct, listBomOverview, updateBomVersion };

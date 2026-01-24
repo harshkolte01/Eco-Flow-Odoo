@@ -73,4 +73,33 @@ export const getProductsByStatus = async (statuses = ['active']) => {
 
 export const getActiveProducts = async () => getProductsByStatus(['active']);
 
-export default { getProductsByStatus, getActiveProducts };
+/**
+ * Update Product Version
+ * STRICT GUARD: Only allowed via ECO process
+ * This method is here to prevent accidental implementation of direct updates
+ */
+export const updateProductVersion = async (id, data) => {
+  const version = await prisma.productVersion.findUnique({
+    where: { id },
+    select: { status: true }
+  });
+
+  if (!version) {
+    const error = new Error('Product version not found');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  if (version.status !== 'draft') {
+    const error = new Error(`Direct updates to ${version.status} versions are strictly prohibited. Use the ECO process.`);
+    error.statusCode = 403;
+    throw error;
+  }
+
+  return prisma.productVersion.update({
+    where: { id },
+    data
+  });
+};
+
+export default { getProductsByStatus, getActiveProducts, updateProductVersion };

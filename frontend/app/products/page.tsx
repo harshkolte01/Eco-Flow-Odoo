@@ -225,8 +225,19 @@ export default function ProductsPage() {
                         <div>Cost: {formatMoney(item.costPrice)}</div>
                       </div>
                       <div className="col-span-2">
-                        <span className="inline-flex items-center rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600 capitalize">
+                        <span className={`inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-semibold capitalize ${
+                          item.status === 'active' 
+                            ? 'bg-emerald-50 text-emerald-700' 
+                            : item.status === 'archived'
+                            ? 'bg-gray-100 text-gray-500'
+                            : 'bg-blue-50 text-blue-700'
+                        }`}>
                           {item.status}
+                          {item.status === 'archived' && (
+                            <svg className="ml-1.5 h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                            </svg>
+                          )}
                         </span>
                       </div>
                       <div className="col-span-1 text-xs text-gray-500 text-right">

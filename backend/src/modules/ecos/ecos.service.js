@@ -654,6 +654,62 @@ export const startEco = async (ecoId, currentUser) => {
     bomId: eco.bomId
   });
 
+  // Verify that the draft has actual changes before starting
+  if (normalized.ecoType === 'product') {
+    const draft = await prisma.ecoProductChange.findUnique({
+      where: { ecoId: eco.id }
+    });
+    
+    if (draft) {
+      const baseVersion = await prisma.productVersion.findUnique({
+        where: { id: draft.baseProductVersionId }
+      });
+      
+      const hasChanges = 
+        draft.newProductName !== baseVersion.productName ||
+        Number(draft.newSalePrice) !== Number(baseVersion.salePrice) ||
+        Number(draft.newCostPrice) !== Number(baseVersion.costPrice) ||
+        JSON.stringify(draft.newAttachments) !== JSON.stringify(baseVersion.attachments);
+        
+      if (!hasChanges) {
+        const error = new Error('No changes detected in product draft. Cannot start ECO.');
+        error.statusCode = 400;
+        throw error;
+      }
+    }
+  } else {
+    const draft = await prisma.ecoBomDraft.findUnique({
+      where: { ecoId: eco.id },
+      include: { 
+        components: true, 
+        operations: true,
+        baseBomVersion: {
+          include: { components: true, operations: true }
+        }
+      }
+    });
+
+    if (draft) {
+      const componentsChanged = draft.components.length !== draft.baseBomVersion.components.length ||
+        draft.components.some((c, i) => {
+          const bc = draft.baseBomVersion.components[i];
+          return !bc || c.componentProductVersionId !== bc.componentProductVersionId || Number(c.quantity) !== Number(bc.quantity);
+        });
+
+      const operationsChanged = draft.operations.length !== draft.baseBomVersion.operations.length ||
+        draft.operations.some((o, i) => {
+          const bo = draft.baseBomVersion.operations[i];
+          return !bo || o.operationName !== bo.operationName || o.timeMinutes !== bo.timeMinutes || o.workCenter !== bo.workCenter;
+        });
+
+      if (!componentsChanged && !operationsChanged) {
+        const error = new Error('No changes detected in BoM draft. Cannot start ECO.');
+        error.statusCode = 400;
+        throw error;
+      }
+    }
+  }
+
   const operations = [];
 
   if (normalized.ecoType === 'product') {
@@ -1018,15 +1074,36 @@ export const updateEcoProductDraft = async (ecoId, payload, currentUser) => {
     }
   };
 
-  await prisma.auditLog.create({
-    data: {
-      entityType: 'eco',
-      entityId: String(ecoId),
-      action: 'draft_updated',
-      performedById: currentUser?.id ?? eco.raisedById,
-      newValue: { ecoType: 'product', fields: Object.keys(data) }
+  const changedFields = Object.keys(data).filter((field) => {
+    const oldValue = draft[field];
+    const newValue = data[field];
+    
+    // Simple comparison for JSON/Decimal/String
+    if (field === 'newAttachments') {
+      return JSON.stringify(oldValue) !== JSON.stringify(newValue);
     }
+    return String(oldValue) !== String(newValue);
   });
+
+  if (changedFields.length > 0) {
+    const oldValueLog = {};
+    const newValueLog = {};
+    changedFields.forEach((field) => {
+      oldValueLog[field] = draft[field];
+      newValueLog[field] = data[field];
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        entityType: 'eco',
+        entityId: String(ecoId),
+        action: 'draft_updated',
+        performedById: currentUser?.id ?? eco.raisedById,
+        oldValue: { ecoType: 'product', ...oldValueLog },
+        newValue: { ecoType: 'product', ...newValueLog }
+      }
+    });
+  }
 
   return response;
 };

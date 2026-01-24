@@ -18,13 +18,7 @@ interface Stage {
 }
 
 export default function EcoStagesPage() {
-  return (
-    <ProtectedRoute>
-      <AppShell>
-        <EcoStagesContent />
-      </AppShell>
-    </ProtectedRoute>
-  );
+  return <EcoStagesContent />;
 }
 
 function EcoStagesContent() {
@@ -34,6 +28,18 @@ function EcoStagesContent() {
   const [error, setError] = useState<string | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [deleteStageId, setDeleteStageId] = useState<number | null>(null);
+  const [createForm, setCreateForm] = useState({
+    name: '',
+    sequenceOrder: '',
+    approvalRequired: false
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editStageId, setEditStageId] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState({
+    name: '',
+    sequenceOrder: '',
+    approvalRequired: false
+  });
 
   const loadStages = async () => {
     setLoading(true);
@@ -67,6 +73,81 @@ function EcoStagesContent() {
     } catch (err) {
       const message = err instanceof ApiError ? err.message : 'Failed to delete stage';
       alert(message);
+    }
+  };
+
+  const handleCreateStage = async () => {
+    // Validation
+    if (!createForm.name.trim()) {
+      alert('Stage name is required');
+      return;
+    }
+    if (!createForm.sequenceOrder || parseInt(createForm.sequenceOrder) <= 0) {
+      alert('Valid sequence order is required');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await apiFetch('/api/stages', {
+        method: 'POST',
+        body: {
+          name: createForm.name.trim(),
+          sequenceOrder: parseInt(createForm.sequenceOrder),
+          approvalRequired: createForm.approvalRequired
+        },
+      });
+      await loadStages();
+      setIsCreateModalOpen(false);
+      setCreateForm({ name: '', sequenceOrder: '', approvalRequired: false });
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : 'Failed to create stage';
+      alert(message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleEditStage = (stage: Stage) => {
+    setEditStageId(stage.id);
+    setEditForm({
+      name: stage.name,
+      sequenceOrder: stage.sequenceOrder.toString(),
+      approvalRequired: stage.approvalRequired
+    });
+  };
+
+  const handleUpdateStage = async () => {
+    if (!editStageId) return;
+
+    // Validation
+    if (!editForm.name.trim()) {
+      alert('Stage name is required');
+      return;
+    }
+    if (!editForm.sequenceOrder || parseInt(editForm.sequenceOrder) <= 0) {
+      alert('Valid sequence order is required');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await apiFetch(`/api/stages/${editStageId}`, {
+        method: 'PATCH',
+        body: {
+          name: editForm.name.trim(),
+          sequenceOrder: parseInt(editForm.sequenceOrder),
+          approvalRequired: editForm.approvalRequired
+        },
+      });
+      await loadStages();
+      setEditStageId(null);
+      setEditForm({ name: '', sequenceOrder: '', approvalRequired: false });
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : 'Failed to update stage';
+      alert(message);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -196,6 +277,12 @@ function EcoStagesContent() {
                     >
                       Configure
                     </button>
+                    <button
+                      onClick={() => handleEditStage(stage)}
+                      className="text-blue-600 hover:text-blue-900 mr-4"
+                    >
+                      Edit
+                    </button>
                     {stage.ecoCount === 0 && (
                       <button
                         onClick={() => setDeleteStageId(stage.id)}
@@ -259,21 +346,283 @@ function EcoStagesContent() {
         </div>
       )}
 
-      {/* Create Stage Modal - Placeholder */}
+      {/* Create Stage Modal */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="max-w-lg rounded-lg bg-white p-6 shadow-xl">
-            <h3 className="text-lg font-medium text-gray-900">Create Stage (Coming Soon)</h3>
-            <p className="mt-2 text-sm text-gray-500">
-              Stage creation UI will be implemented shortly.
-            </p>
-            <div className="mt-6 flex justify-end">
-              <button
-                onClick={() => setIsCreateModalOpen(false)}
-                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-              >
-                Close
-              </button>
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4 transition-opacity"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !isSubmitting) {
+              setIsCreateModalOpen(false);
+              setCreateForm({ name: '', sequenceOrder: '', approvalRequired: false });
+            }
+          }}
+        >
+          <div className="max-w-lg w-full rounded-lg bg-white shadow-2xl transform transition-all">
+            {/* Header */}
+            <div className="border-b border-gray-200 px-6 py-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Create New ECO Stage</h3>
+                  <p className="mt-1 text-sm text-gray-500">
+                    Add a new stage to the ECO approval workflow
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    if (!isSubmitting) {
+                      setIsCreateModalOpen(false);
+                      setCreateForm({ name: '', sequenceOrder: '', approvalRequired: false });
+                    }
+                  }}
+                  disabled={isSubmitting}
+                  className="text-gray-400 hover:text-gray-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            
+            {/* Body */}
+            <div className="px-6 py-4 space-y-5">
+              <div>
+                <label htmlFor="stage-name" className="block text-sm font-medium text-gray-700 mb-1">
+                  Stage Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="stage-name"
+                  type="text"
+                  value={createForm.name}
+                  onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
+                  placeholder="e.g., Review, Validation, Approval"
+                  disabled={isSubmitting}
+                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed sm:text-sm"
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label htmlFor="sequence-order" className="block text-sm font-medium text-gray-700 mb-1">
+                  Sequence Order <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="sequence-order"
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={createForm.sequenceOrder}
+                  onChange={(e) => setCreateForm({ ...createForm, sequenceOrder: e.target.value })}
+                  placeholder="Enter a positive number"
+                  disabled={isSubmitting}
+                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed sm:text-sm"
+                />
+                <p className="mt-1.5 text-xs text-gray-500">
+                  <svg className="inline h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Lower numbers appear first in the workflow sequence
+                </p>
+              </div>
+
+              <div className="rounded-md bg-gray-50 p-4 border border-gray-200">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={createForm.approvalRequired}
+                    onChange={(e) => setCreateForm({ ...createForm, approvalRequired: e.target.checked })}
+                    disabled={isSubmitting}
+                    className="mt-0.5 h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  />
+                  <div className="flex-1">
+                    <span className="text-sm font-medium text-gray-900">
+                      Approval Required
+                    </span>
+                    <p className="mt-0.5 text-xs text-gray-600">
+                      When enabled, ECOs must receive approval before proceeding to the next stage. Configure approvers after creating the stage.
+                    </p>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="border-t border-gray-200 bg-gray-50 px-6 py-4 rounded-b-lg">
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => {
+                    setIsCreateModalOpen(false);
+                    setCreateForm({ name: '', sequenceOrder: '', approvalRequired: false });
+                  }}
+                  disabled={isSubmitting}
+                  className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCreateStage}
+                  disabled={isSubmitting || !createForm.name.trim() || !createForm.sequenceOrder}
+                  className="inline-flex items-center gap-2 rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                      Create Stage
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Stage Modal */}
+      {editStageId && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4 transition-opacity"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !isSubmitting) {
+              setEditStageId(null);
+              setEditForm({ name: '', sequenceOrder: '', approvalRequired: false });
+            }
+          }}
+        >
+          <div className="max-w-lg w-full rounded-lg bg-white shadow-2xl transform transition-all">
+            {/* Header */}
+            <div className="border-b border-gray-200 px-6 py-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Edit ECO Stage</h3>
+                  <p className="mt-1 text-sm text-gray-500">
+                    Update stage details in the ECO approval workflow
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    if (!isSubmitting) {
+                      setEditStageId(null);
+                      setEditForm({ name: '', sequenceOrder: '', approvalRequired: false });
+                    }
+                  }}
+                  disabled={isSubmitting}
+                  className="text-gray-400 hover:text-gray-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            
+            {/* Body */}
+            <div className="px-6 py-4 space-y-5">
+              <div>
+                <label htmlFor="edit-stage-name" className="block text-sm font-medium text-gray-700 mb-1">
+                  Stage Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="edit-stage-name"
+                  type="text"
+                  value={editForm.name}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                  placeholder="e.g., Review, Validation, Approval"
+                  disabled={isSubmitting}
+                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed sm:text-sm"
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label htmlFor="edit-sequence-order" className="block text-sm font-medium text-gray-700 mb-1">
+                  Sequence Order <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="edit-sequence-order"
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={editForm.sequenceOrder}
+                  onChange={(e) => setEditForm({ ...editForm, sequenceOrder: e.target.value })}
+                  placeholder="Enter a positive number"
+                  disabled={isSubmitting}
+                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed sm:text-sm"
+                />
+                <p className="mt-1.5 text-xs text-gray-500">
+                  <svg className="inline h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Lower numbers appear first in the workflow sequence
+                </p>
+              </div>
+
+              <div className="rounded-md bg-gray-50 p-4 border border-gray-200">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editForm.approvalRequired}
+                    onChange={(e) => setEditForm({ ...editForm, approvalRequired: e.target.checked })}
+                    disabled={isSubmitting}
+                    className="mt-0.5 h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  />
+                  <div className="flex-1">
+                    <span className="text-sm font-medium text-gray-900">
+                      Approval Required
+                    </span>
+                    <p className="mt-0.5 text-xs text-gray-600">
+                      When enabled, ECOs must receive approval before proceeding to the next stage. Configure approvers after updating the stage.
+                    </p>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="border-t border-gray-200 bg-gray-50 px-6 py-4 rounded-b-lg">
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => {
+                    setEditStageId(null);
+                    setEditForm({ name: '', sequenceOrder: '', approvalRequired: false });
+                  }}
+                  disabled={isSubmitting}
+                  className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleUpdateStage}
+                  disabled={isSubmitting || !editForm.name.trim() || !editForm.sequenceOrder}
+                  className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Updating...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      Update Stage
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>

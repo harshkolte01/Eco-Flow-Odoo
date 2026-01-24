@@ -41,11 +41,11 @@ const checkDuplicateSequence = async (sequenceOrder, stageId) => {
       sequenceOrder,
       ...(stageId ? { id: { not: stageId } } : {})
     },
-    select: { id: true }
+    select: { id: true, sequenceOrder: true }
   });
 
   if (existing) {
-    const error = new Error('Stage sequence order already exists');
+    const error = new Error('Stage sequence order already exists. To reorder stages, swap the sequence orders or update multiple stages in a transaction.');
     error.statusCode = 409;
     throw error;
   }
@@ -54,9 +54,13 @@ const checkDuplicateSequence = async (sequenceOrder, stageId) => {
 export const listStages = async () => {
   const stages = await prisma.ecoStage.findMany({
     include: {
+      stageApprovers: {
+        select: {
+          id: true
+        }
+      },
       _count: {
         select: {
-          stageApprovers: true,
           ecos: true
         }
       }
@@ -67,10 +71,14 @@ export const listStages = async () => {
   });
 
   return stages.map(stage => ({
-    ...stage,
-    approverCount: stage._count.stageApprovers,
-    ecoCount: stage._count.ecos,
-    _count: undefined
+    id: stage.id,
+    name: stage.name,
+    sequenceOrder: stage.sequenceOrder,
+    approvalRequired: stage.approvalRequired,
+    createdAt: stage.createdAt,
+    updatedAt: stage.updatedAt,
+    approverCount: stage.stageApprovers.length,
+    ecoCount: stage._count.ecos
   }));
 };
 
