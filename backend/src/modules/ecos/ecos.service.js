@@ -186,24 +186,24 @@ const formatEcoDetail = (eco) => {
     currentStage: eco.currentStage,
     product: eco.product
       ? {
-          id: eco.product.id,
-          productCode: eco.product.productCode,
-          productName
-        }
+        id: eco.product.id,
+        productCode: eco.product.productCode,
+        productName
+      }
       : null,
     bom: eco.bom
       ? {
-          id: eco.bom.id,
-          versionNo: bomVersionNo
-        }
+        id: eco.bom.id,
+        versionNo: bomVersionNo
+      }
       : null,
     raisedBy: eco.raisedBy
       ? {
-          id: eco.raisedBy.id,
-          name: eco.raisedBy.name,
-          loginId: eco.raisedBy.loginId,
-          email: eco.raisedBy.email
-        }
+        id: eco.raisedBy.id,
+        name: eco.raisedBy.name,
+        loginId: eco.raisedBy.loginId,
+        email: eco.raisedBy.email
+      }
       : null
   };
 };
@@ -223,10 +223,10 @@ const formatEcoListItem = (eco) => {
     currentStage: eco.currentStage,
     product: eco.product
       ? {
-          id: eco.product.id,
-          productCode: eco.product.productCode,
-          productName
-        }
+        id: eco.product.id,
+        productCode: eco.product.productCode,
+        productName
+      }
       : null
   };
 };
@@ -635,12 +635,26 @@ export const startEco = async (ecoId) => {
     }
   }
 
+  // Get the next stage (Approval stage - sequence order 2)
+  const nextStage = await prisma.ecoStage.findFirst({
+    where: {
+      sequenceOrder: 2
+    }
+  });
+
+  if (!nextStage) {
+    const error = new Error('Approval stage not found. Please run database seed.');
+    error.statusCode = 500;
+    throw error;
+  }
+
   operations.push(
     prisma.eco.update({
       where: { id: ecoId },
       data: {
         status: 'in_progress',
-        bomId: normalized.bomId
+        bomId: normalized.bomId,
+        currentStageId: nextStage.id
       },
       select: ecoDetailSelect
     })

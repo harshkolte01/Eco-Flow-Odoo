@@ -143,7 +143,7 @@ export function EcoListPanel({
                 {grouped[status].length}
               </span>
             </div>
-            <div className="flex flex-col gap-3 p-4">
+            <div className="flex flex-col gap-3 p-4 max-h-[calc(100vh-16rem)] overflow-y-auto">
               {grouped[status].length === 0 ? (
                 <p className="text-xs text-gray-400">No items</p>
               ) : (
