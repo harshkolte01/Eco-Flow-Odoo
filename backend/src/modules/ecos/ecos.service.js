@@ -1,4 +1,5 @@
 import { prisma } from '../../config/database.js';
+import approversService from '../stages/approvers.service.js';
 
 /**
  * ECO Service
@@ -1419,6 +1420,40 @@ export const approveEco = async (ecoId, currentUser) => {
     throw error;
   }
 
+  // Record this user's approval
+  await prisma.ecoApproval.create({
+    data: {
+      ecoId: eco.id,
+      stageId: eco.currentStageId,
+      approverId: currentUser.id,
+      status: 'approved',
+      actionDate: new Date()
+    }
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      entityType: 'eco',
+      entityId: String(ecoId),
+      action: 'approved_by_user',
+      performedById: currentUser.id,
+      newValue: { stageId: eco.currentStageId, approverId: currentUser.id }
+    }
+  });
+
+  // Check if all required approvals are met
+  const approvalCheck = await approversService.canProceedToNextStage(ecoId, eco.currentStageId);
+
+  // If can't proceed yet, return current state
+  if (!approvalCheck.canProceed) {
+    const updatedEco = await prisma.eco.findUnique({
+      where: { id: ecoId },
+      select: ecoDetailSelect
+    });
+    return formatEcoDetail(updatedEco);
+  }
+
+  // All required approvals met, proceed to next stage
   const nextStage = await getNextStage(eco.currentStage.sequenceOrder);
 
   if (!nextStage) {
@@ -1430,16 +1465,6 @@ export const approveEco = async (ecoId, currentUser) => {
   const nextStageIsFinal = await isFinalStage(nextStage.id);
 
   const updatedEcoId = await prisma.$transaction(async (tx) => {
-    await tx.ecoApproval.create({
-      data: {
-        ecoId: eco.id,
-        stageId: eco.currentStageId,
-        approverId: currentUser.id,
-        status: 'approved',
-        actionDate: new Date()
-      }
-    });
-
     const ecoUpdate = await tx.eco.update({
       where: { id: ecoId },
       data: {
@@ -1453,7 +1478,7 @@ export const approveEco = async (ecoId, currentUser) => {
       data: {
         entityType: 'eco',
         entityId: String(ecoId),
-        action: 'approved',
+        action: 'stage_completed',
         performedById: currentUser.id,
         newValue: { stageId: nextStage.id, status: nextStageIsFinal ? 'approved' : 'in_progress' }
       }

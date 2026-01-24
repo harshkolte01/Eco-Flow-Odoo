@@ -3,7 +3,7 @@
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { useAuth } from '@/context/AuthContext';
 import { AppShell } from '@/components/AppShell';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { EcoCreateModal } from '@/components/EcoCreateModal';
 import { apiFetch, ApiError } from '@/lib/api';
 import { EcoListPanel, EcoListItem } from '@/components/EcoListPanel';
@@ -59,7 +59,7 @@ function Dashboard() {
     setEditingEcoId(null);
   };
 
-  const loadOverview = async () => {
+  const loadOverview = useCallback(async () => {
     setOverviewLoading(true);
     setOverviewError(null);
 
@@ -149,11 +149,11 @@ function Dashboard() {
     } finally {
       setOverviewLoading(false);
     }
-  };
+  }, [activeSearch, refreshKey, user, isOperations, isEngineering, isAdmin]);
 
   useEffect(() => {
     loadOverview();
-  }, [activeSearch, refreshKey, user?.role]);
+  }, [loadOverview]);
 
   const pendingApprovals = useMemo(() => {
     if (isEngineering || isOperations) return [];

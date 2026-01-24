@@ -51,6 +51,11 @@ enum AuditEntityType {
   eco
 }
 
+enum ApprovalCategory {
+  required
+  optional
+}
+
 model Role {
   id    Int    @id @default(autoincrement())
   name  String @unique
@@ -71,6 +76,7 @@ model User {
   ecosRaised   Eco[]     @relation("EcoRaisedBy")
   approvals    EcoApproval[]
   auditLogs    AuditLog[]
+  stageApprovers StageApprover[]
 }
 
 model Product {
@@ -164,14 +170,15 @@ model BomOperation {
 }
 
 model EcoStage {
-  id               Int           @id @default(autoincrement())
-  name             String        @unique
+  id               Int              @id @default(autoincrement())
+  name             String           @unique
   sequenceOrder    Int
-  approvalRequired Boolean       @default(false)
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
+  approvalRequired Boolean          @default(false)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
   ecos             Eco[]
   approvals        EcoApproval[]
+  stageApprovers   StageApprover[]
 }
 
 model Eco {
@@ -301,4 +308,19 @@ model AuditLog {
 
   @@index([performedById])
   @@index([entityType, entityId])
+}
+
+model StageApprover {
+  id               Int              @id @default(autoincrement())
+  stageId          Int
+  stage            EcoStage         @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  userId           Int
+  user             User             @relation(fields: [userId], references: [id])
+  approvalCategory ApprovalCategory @default(required)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@unique([stageId, userId])
+  @@index([stageId])
+  @@index([userId])
 }

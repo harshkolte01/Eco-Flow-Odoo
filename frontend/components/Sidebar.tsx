@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
+import { useAuth } from '@/context/AuthContext';
 
 type SidebarProps = {
   isExpanded: boolean;
@@ -59,28 +60,33 @@ const masterDataItems: NavItem[] = [
   }
 ];
 
-const settingsItems: NavItem[] = [
-  {
-    label: 'ECO Stages',
-    disabled: true,
-    badge: 'Soon',
-    icon: (
-      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m-6-8h6M4 6h2v12H4m14-12h2v12h-2" />
-      </svg>
-    )
-  },
-  {
-    label: 'Approval Rules',
-    disabled: true,
-    badge: 'Soon',
-    icon: (
-      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </svg>
-    )
+const getSettingsItems = (isAdmin: boolean): NavItem[] => {
+  if (!isAdmin) {
+    return [];
   }
-];
+  
+  return [
+    {
+      label: 'ECO Stages',
+      href: '/settings/eco-stages',
+      icon: (
+        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+        </svg>
+      )
+    },
+    {
+      label: 'Approval Rules',
+      disabled: true,
+      badge: 'Soon',
+      icon: (
+        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      )
+    }
+  ];
+};
 
 function SidebarItem({
   item,
@@ -164,6 +170,10 @@ function SidebarContent({
   isExpanded: boolean;
   onNavigate: () => void;
 }) {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+  const settingsItems = getSettingsItems(isAdmin);
+  
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const queryString = searchParams?.toString();
@@ -257,38 +267,40 @@ function SidebarContent({
           </details>
         </div>
 
-        <div className="space-y-2">
-          <details className="group">
-            <summary className="flex cursor-pointer list-none items-center justify-between rounded-md px-2 py-1 text-gray-500 transition-colors hover:bg-gray-100">
-              <span className={`flex items-center ${isExpanded ? 'gap-2' : 'justify-center w-full'}`}>
-                <span className="flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-500">
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.5 6h3m-4 4h5m-6 4h6m-7 4h7M6 4h12a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2z" />
+        {isAdmin && settingsItems.length > 0 && (
+          <div className="space-y-2">
+            <details className="group">
+              <summary className="flex cursor-pointer list-none items-center justify-between rounded-md px-2 py-1 text-gray-500 transition-colors hover:bg-gray-100">
+                <span className={`flex items-center ${isExpanded ? 'gap-2' : 'justify-center w-full'}`}>
+                  <span className="flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-500">
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.5 6h3m-4 4h5m-6 4h6m-7 4h7M6 4h12a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2z" />
+                    </svg>
+                  </span>
+                  <span className={`text-xs uppercase ${isExpanded ? '' : 'sr-only'}`}>
+                    Settings
+                  </span>
+                </span>
+                <span className={`text-gray-600 transition group-open:rotate-180 ${isExpanded ? '' : 'sr-only'}`}>
+                  <svg className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.19l3.71-3.96a.75.75 0 011.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
                   </svg>
                 </span>
-                <span className={`text-xs uppercase ${isExpanded ? '' : 'sr-only'}`}>
-                  Settings
-                </span>
-              </span>
-              <span className={`text-gray-600 transition group-open:rotate-180 ${isExpanded ? '' : 'sr-only'}`}>
-                <svg className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.19l3.71-3.96a.75.75 0 011.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
-                </svg>
-              </span>
-            </summary>
-            <div className={`mt-2 space-y-2 ${isExpanded ? '' : 'hidden'}`}>
-              {settingsItems.map((item) => (
-                <SidebarItem
-                  key={item.label}
-                  item={item}
-                  isExpanded={isExpanded}
-                  isActive={isItemActive(item.href)}
-                  onNavigate={onNavigate}
-                />
-              ))}
-            </div>
-          </details>
-        </div>
+              </summary>
+              <div className={`mt-2 space-y-2 ${isExpanded ? '' : 'hidden'}`}>
+                {settingsItems.map((item) => (
+                  <SidebarItem
+                    key={item.label}
+                    item={item}
+                    isExpanded={isExpanded}
+                    isActive={isItemActive(item.href)}
+                    onNavigate={onNavigate}
+                  />
+                ))}
+              </div>
+            </details>
+          </div>
+        )}
       </nav>
 
       <div className={`mt-auto px-4 pb-5 ${isExpanded ? 'block' : 'hidden'}`}>

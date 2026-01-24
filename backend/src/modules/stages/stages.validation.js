@@ -56,8 +56,43 @@ export const updateStageSchema = {
   }
 };
 
+const validateApprovalCategory = (value) => {
+  if (!['required', 'optional'].includes(value)) {
+    return 'approvalCategory must be either "required" or "optional"';
+  }
+  return null;
+};
+
+export const addApproverSchema = {
+  userId: {
+    required: true,
+    validator: validatePositiveInt('userId')
+  },
+  approvalCategory: {
+    required: false,
+    validator: validateApprovalCategory
+  }
+};
+
+export const updateApproverCategorySchema = {
+  approvalCategory: {
+    required: true,
+    validator: validateApprovalCategory
+  }
+};
+
+export const approverIdParamSchema = {
+  approverId: {
+    required: true,
+    validator: validatePositiveInt('approverId')
+  }
+};
+
 export default {
   stageIdParamSchema,
   createStageSchema,
-  updateStageSchema
+  updateStageSchema,
+  addApproverSchema,
+  updateApproverCategorySchema,
+  approverIdParamSchema
 };

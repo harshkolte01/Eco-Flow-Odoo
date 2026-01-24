@@ -1,5 +1,6 @@
 // backend/prisma/seed.ts
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
@@ -26,6 +27,44 @@ async function main() {
     });
 
     console.log(`   ✓ Ensured role exists: ${saved.name}`);
+  }
+
+  // -----------------------
+  // 1a) Seed Admin User (idempotent)
+  // -----------------------
+  console.log('\n👤 Seeding admin user...');
+
+  const adminRole = await prisma.role.findUnique({
+    where: { name: 'admin' }
+  });
+
+  if (!adminRole) {
+    throw new Error('Admin role not found! Ensure roles are seeded first.');
+  }
+
+  // Check if admin user already exists
+  const existingAdmin = await prisma.user.findUnique({
+    where: { loginId: 'admin' }
+  });
+
+  if (existingAdmin) {
+    console.log('   ✓ Admin user already exists: admin');
+  } else {
+    // Hash password: "admin123"
+    const passwordHash = await bcrypt.hash('admin123', 10);
+
+    const adminUser = await prisma.user.create({
+      data: {
+        loginId: 'admin123',
+        name: 'System Administrator',
+        email: 'admin@ecoflow.com',
+        passwordHash,
+        roleId: adminRole.id
+      }
+    });
+
+    console.log('   ✓ Created admin user: admin (password: admin123)');
+    console.log('   ⚠️  IMPORTANT: Change this password in production!');
   }
 
   // -----------------------

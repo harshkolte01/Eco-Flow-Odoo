@@ -52,11 +52,26 @@ const checkDuplicateSequence = async (sequenceOrder, stageId) => {
 };
 
 export const listStages = async () => {
-  return prisma.ecoStage.findMany({
+  const stages = await prisma.ecoStage.findMany({
+    include: {
+      _count: {
+        select: {
+          stageApprovers: true,
+          ecos: true
+        }
+      }
+    },
     orderBy: {
       sequenceOrder: 'asc'
     }
   });
+
+  return stages.map(stage => ({
+    ...stage,
+    approverCount: stage._count.stageApprovers,
+    ecoCount: stage._count.ecos,
+    _count: undefined
+  }));
 };
 
 export const createStage = async ({ name, sequenceOrder, approvalRequired }) => {
