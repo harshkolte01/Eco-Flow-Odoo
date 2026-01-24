@@ -49,6 +49,19 @@ export default function SettingsLayout({
                 </li>
                 <li>
                   <Link
+                    href="/settings/approval-rules"
+                    className="block rounded-md px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-emerald-50 hover:text-emerald-600"
+                  >
+                    <div className="flex items-center gap-3">
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span>Approval Rules</span>
+                    </div>
+                  </Link>
+                </li>
+                <li>
+                  <Link
                     href="/settings/users"
                     className="block rounded-md px-4 py-2.5 text-sm font-medium text-gray-400 transition-colors cursor-not-allowed"
                   >
