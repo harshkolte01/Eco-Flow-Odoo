@@ -4,7 +4,11 @@ import {
   updateEcoController,
   startEcoController,
   listEcosController,
-  getEcoByIdController
+  getEcoByIdController,
+  getEcoProductDraftController,
+  updateEcoProductDraftController,
+  getEcoBomDraftController,
+  updateEcoBomDraftController
 } from './ecos.controller.js';
 import { requireAuth } from '../../middlewares/auth.middleware.js';
 import { validate } from '../../middlewares/validate.middleware.js';
@@ -47,6 +51,54 @@ router.post(
   requireAuth,
   validate(ecoIdParamSchema, 'params'),
   startEcoController
+);
+
+/**
+ * @route   GET /ecos/:id/draft/product
+ * @desc    Get ECO product draft changes
+ * @access  Private
+ */
+router.get(
+  '/:id/draft/product',
+  requireAuth,
+  validate(ecoIdParamSchema, 'params'),
+  getEcoProductDraftController
+);
+
+/**
+ * @route   PUT /ecos/:id/draft/product
+ * @desc    Update ECO product draft changes
+ * @access  Private
+ */
+router.put(
+  '/:id/draft/product',
+  requireAuth,
+  validate(ecoIdParamSchema, 'params'),
+  updateEcoProductDraftController
+);
+
+/**
+ * @route   GET /ecos/:id/draft/bom
+ * @desc    Get ECO BoM draft changes
+ * @access  Private
+ */
+router.get(
+  '/:id/draft/bom',
+  requireAuth,
+  validate(ecoIdParamSchema, 'params'),
+  getEcoBomDraftController
+);
+
+/**
+ * @route   PUT /ecos/:id/draft/bom
+ * @desc    Update ECO BoM draft changes
+ * @access  Private
+ */
+router.put(
+  '/:id/draft/bom',
+  requireAuth,
+  validate(ecoIdParamSchema, 'params'),
+  updateEcoBomDraftController
 );
 
 /**

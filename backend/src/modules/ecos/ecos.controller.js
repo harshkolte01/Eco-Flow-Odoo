@@ -45,10 +45,46 @@ export const getEcoByIdController = asyncHandler(async (req, res) => {
   success(res, { eco }, 200);
 });
 
+export const getEcoProductDraftController = asyncHandler(async (req, res) => {
+  const ecoId = parseInt(req.params.id, 10);
+
+  const draft = await ecosService.getEcoProductDraft(ecoId);
+
+  success(res, { draft }, 200);
+});
+
+export const updateEcoProductDraftController = asyncHandler(async (req, res) => {
+  const ecoId = parseInt(req.params.id, 10);
+
+  const draft = await ecosService.updateEcoProductDraft(ecoId, req.body);
+
+  success(res, { draft }, 200);
+});
+
+export const getEcoBomDraftController = asyncHandler(async (req, res) => {
+  const ecoId = parseInt(req.params.id, 10);
+
+  const draft = await ecosService.getEcoBomDraft(ecoId);
+
+  success(res, { draft }, 200);
+});
+
+export const updateEcoBomDraftController = asyncHandler(async (req, res) => {
+  const ecoId = parseInt(req.params.id, 10);
+
+  const draft = await ecosService.updateEcoBomDraft(ecoId, req.body);
+
+  success(res, { draft }, 200);
+});
+
 export default {
   createEcoController,
   updateEcoController,
   startEcoController,
   listEcosController,
-  getEcoByIdController
+  getEcoByIdController,
+  getEcoProductDraftController,
+  updateEcoProductDraftController,
+  getEcoBomDraftController,
+  updateEcoBomDraftController
 };

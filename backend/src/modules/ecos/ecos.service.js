@@ -245,6 +245,41 @@ const ensureEcoDraft = (eco) => {
   }
 };
 
+const ensureEcoType = (eco, expectedType) => {
+  if (eco.ecoType !== expectedType) {
+    const error = new Error(`ECO type must be ${expectedType}`);
+    error.statusCode = 400;
+    throw error;
+  }
+};
+
+const parseOptionalDecimal = (value, fieldName) => {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+  const normalized = typeof value === 'string' ? value.trim() : value;
+  const parsed = Number(normalized);
+  if (Number.isNaN(parsed)) {
+    const error = new Error(`${fieldName} must be a valid number`);
+    error.statusCode = 400;
+    throw error;
+  }
+  return normalized;
+};
+
+const parseOptionalInt = (value, fieldName) => {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+  const parsed = parseInt(value, 10);
+  if (Number.isNaN(parsed)) {
+    const error = new Error(`${fieldName} must be a valid integer`);
+    error.statusCode = 400;
+    throw error;
+  }
+  return parsed;
+};
+
 const ensureEcoStageExists = async () => {
   const stage = await prisma.ecoStage.findFirst({
     orderBy: {
@@ -661,10 +696,441 @@ export const getEcoById = async (ecoId) => {
   return formatEcoDetail(eco);
 };
 
+export const getEcoProductDraft = async (ecoId) => {
+  const eco = await prisma.eco.findUnique({
+    where: { id: ecoId },
+    select: {
+      id: true,
+      ecoType: true,
+      status: true,
+      productId: true
+    }
+  });
+
+  ensureEcoDraft(eco);
+  ensureEcoType(eco, 'product');
+
+  let draft = await prisma.ecoProductChange.findUnique({
+    where: { ecoId: eco.id },
+    include: {
+      baseProductVersion: {
+        select: {
+          productName: true,
+          salePrice: true,
+          costPrice: true,
+          attachments: true
+        }
+      }
+    }
+  });
+
+  if (!draft) {
+    const baseVersion = await getBaseProductVersion(prisma, eco.productId);
+    draft = await prisma.ecoProductChange.create({
+      data: {
+        ecoId: eco.id,
+        baseProductVersionId: baseVersion.id,
+        newProductName: baseVersion.productName,
+        newSalePrice: baseVersion.salePrice,
+        newCostPrice: baseVersion.costPrice,
+        newAttachments: baseVersion.attachments
+      },
+      include: {
+        baseProductVersion: {
+          select: {
+            productName: true,
+            salePrice: true,
+            costPrice: true,
+            attachments: true
+          }
+        }
+      }
+    });
+  }
+
+  return {
+    base: draft.baseProductVersion,
+    draft: {
+      newProductName: draft.newProductName,
+      newSalePrice: draft.newSalePrice,
+      newCostPrice: draft.newCostPrice,
+      newAttachments: draft.newAttachments
+    }
+  };
+};
+
+export const updateEcoProductDraft = async (ecoId, payload) => {
+  const eco = await prisma.eco.findUnique({
+    where: { id: ecoId },
+    select: {
+      id: true,
+      ecoType: true,
+      status: true,
+      productId: true
+    }
+  });
+
+  ensureEcoDraft(eco);
+  ensureEcoType(eco, 'product');
+
+  const data = {};
+
+  if (Object.prototype.hasOwnProperty.call(payload, 'newProductName')) {
+    data.newProductName = normalizeOptionalValue(payload.newProductName);
+  }
+
+  if (Object.prototype.hasOwnProperty.call(payload, 'newSalePrice')) {
+    data.newSalePrice = parseOptionalDecimal(payload.newSalePrice, 'newSalePrice');
+  }
+
+  if (Object.prototype.hasOwnProperty.call(payload, 'newCostPrice')) {
+    data.newCostPrice = parseOptionalDecimal(payload.newCostPrice, 'newCostPrice');
+  }
+
+  if (Object.prototype.hasOwnProperty.call(payload, 'newAttachments')) {
+    data.newAttachments = normalizeOptionalValue(payload.newAttachments);
+  }
+
+  let draft = await prisma.ecoProductChange.findUnique({
+    where: { ecoId: eco.id },
+    include: {
+      baseProductVersion: {
+        select: {
+          productName: true,
+          salePrice: true,
+          costPrice: true,
+          attachments: true
+        }
+      }
+    }
+  });
+
+  if (!draft) {
+    const baseVersion = await getBaseProductVersion(prisma, eco.productId);
+    draft = await prisma.ecoProductChange.create({
+      data: {
+        ecoId: eco.id,
+        baseProductVersionId: baseVersion.id,
+        newProductName:
+          data.newProductName ?? baseVersion.productName,
+        newSalePrice:
+          data.newSalePrice ?? baseVersion.salePrice,
+        newCostPrice:
+          data.newCostPrice ?? baseVersion.costPrice,
+        newAttachments:
+          data.newAttachments ?? baseVersion.attachments
+      },
+      include: {
+        baseProductVersion: {
+          select: {
+            productName: true,
+            salePrice: true,
+            costPrice: true,
+            attachments: true
+          }
+        }
+      }
+    });
+  } else {
+    draft = await prisma.ecoProductChange.update({
+      where: { ecoId: eco.id },
+      data,
+      include: {
+        baseProductVersion: {
+          select: {
+            productName: true,
+            salePrice: true,
+            costPrice: true,
+            attachments: true
+          }
+        }
+      }
+    });
+  }
+
+  return {
+    base: draft.baseProductVersion,
+    draft: {
+      newProductName: draft.newProductName,
+      newSalePrice: draft.newSalePrice,
+      newCostPrice: draft.newCostPrice,
+      newAttachments: draft.newAttachments
+    }
+  };
+};
+
+export const getEcoBomDraft = async (ecoId) => {
+  const eco = await prisma.eco.findUnique({
+    where: { id: ecoId },
+    select: {
+      id: true,
+      ecoType: true,
+      status: true,
+      productId: true,
+      bomId: true
+    }
+  });
+
+  ensureEcoDraft(eco);
+  ensureEcoType(eco, 'bom');
+
+  if (!eco.bomId) {
+    const error = new Error('bomId is required for BoM ECOs');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  let draft = await prisma.ecoBomDraft.findUnique({
+    where: { ecoId: eco.id },
+    include: {
+      components: {
+        select: {
+          componentProductVersionId: true,
+          quantity: true,
+          componentProductVersion: {
+            select: {
+              productName: true,
+              product: {
+                select: {
+                  productCode: true
+                }
+              }
+            }
+          }
+        }
+      },
+      operations: {
+        select: {
+          operationName: true,
+          timeMinutes: true,
+          workCenter: true
+        }
+      }
+    }
+  });
+
+  if (!draft) {
+    const baseVersion = await getBaseBomVersion(prisma, eco.bomId);
+
+    const draftData = {
+      ecoId: eco.id,
+      baseBomVersionId: baseVersion.id
+    };
+
+    if (baseVersion.components.length > 0) {
+      draftData.components = {
+        createMany: {
+          data: baseVersion.components.map((component) => ({
+            componentProductVersionId: component.componentProductVersionId,
+            quantity: component.quantity
+          }))
+        }
+      };
+    }
+
+    if (baseVersion.operations.length > 0) {
+      draftData.operations = {
+        createMany: {
+          data: baseVersion.operations.map((operation) => ({
+            operationName: operation.operationName,
+            timeMinutes: operation.timeMinutes,
+            workCenter: operation.workCenter
+          }))
+        }
+      };
+    }
+
+    draft = await prisma.ecoBomDraft.create({
+      data: draftData,
+      include: {
+        components: {
+          select: {
+            componentProductVersionId: true,
+            quantity: true,
+            componentProductVersion: {
+              select: {
+                productName: true,
+                product: {
+                  select: {
+                    productCode: true
+                  }
+                }
+              }
+            }
+          }
+        },
+        operations: {
+          select: {
+            operationName: true,
+            timeMinutes: true,
+            workCenter: true
+          }
+        }
+      }
+    });
+  }
+
+  return {
+    components: draft.components.map((component) => ({
+      componentProductVersionId: component.componentProductVersionId,
+      quantity: component.quantity,
+      productName: component.componentProductVersion.productName,
+      productCode: component.componentProductVersion.product.productCode
+    })),
+    operations: draft.operations.map((operation) => ({
+      operationName: operation.operationName,
+      timeMinutes: operation.timeMinutes,
+      workCenter: operation.workCenter
+    }))
+  };
+};
+
+export const updateEcoBomDraft = async (ecoId, payload) => {
+  const eco = await prisma.eco.findUnique({
+    where: { id: ecoId },
+    select: {
+      id: true,
+      ecoType: true,
+      status: true,
+      productId: true,
+      bomId: true
+    }
+  });
+
+  ensureEcoDraft(eco);
+  ensureEcoType(eco, 'bom');
+
+  if (!eco.bomId) {
+    const error = new Error('bomId is required for BoM ECOs');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const components = Array.isArray(payload.components) ? payload.components : [];
+  const operations = Array.isArray(payload.operations) ? payload.operations : [];
+
+  const componentData = components.map((component, index) => {
+    const componentProductVersionId = parseRequiredId(
+      component.componentProductVersionId,
+      `components[${index}].componentProductVersionId`
+    );
+    const quantity = parseOptionalDecimal(
+      component.quantity,
+      `components[${index}].quantity`
+    );
+    if (quantity === null) {
+      const error = new Error(`components[${index}].quantity is required`);
+      error.statusCode = 400;
+      throw error;
+    }
+    return {
+      componentProductVersionId,
+      quantity
+    };
+  });
+
+  const operationData = operations.map((operation, index) => {
+    if (!operation.operationName || !String(operation.operationName).trim()) {
+      const error = new Error(`operations[${index}].operationName is required`);
+      error.statusCode = 400;
+      throw error;
+    }
+    const timeMinutes = parseOptionalInt(
+      operation.timeMinutes,
+      `operations[${index}].timeMinutes`
+    );
+    if (timeMinutes === null) {
+      const error = new Error(`operations[${index}].timeMinutes is required`);
+      error.statusCode = 400;
+      throw error;
+    }
+    return {
+      operationName: String(operation.operationName).trim(),
+      timeMinutes,
+      workCenter: normalizeOptionalValue(operation.workCenter)
+    };
+  });
+
+  let draft = await prisma.ecoBomDraft.findUnique({
+    where: { ecoId: eco.id },
+    select: { id: true }
+  });
+
+  if (!draft) {
+    const baseVersion = await getBaseBomVersion(prisma, eco.bomId);
+    const createData = {
+      ecoId: eco.id,
+      baseBomVersionId: baseVersion.id
+    };
+
+    if (componentData.length > 0) {
+      createData.components = {
+        createMany: {
+          data: componentData
+        }
+      };
+    }
+
+    if (operationData.length > 0) {
+      createData.operations = {
+        createMany: {
+          data: operationData
+        }
+      };
+    }
+
+    await prisma.ecoBomDraft.create({
+      data: createData
+    });
+  } else {
+    const operationsList = [
+      prisma.ecoBomComponent.deleteMany({
+        where: { ecoBomDraftId: draft.id }
+      }),
+      prisma.ecoBomOperation.deleteMany({
+        where: { ecoBomDraftId: draft.id }
+      })
+    ];
+
+    if (componentData.length > 0) {
+      operationsList.push(
+        prisma.ecoBomComponent.createMany({
+          data: componentData.map((component) => ({
+            ecoBomDraftId: draft.id,
+            componentProductVersionId: component.componentProductVersionId,
+            quantity: component.quantity
+          }))
+        })
+      );
+    }
+
+    if (operationData.length > 0) {
+      operationsList.push(
+        prisma.ecoBomOperation.createMany({
+          data: operationData.map((operation) => ({
+            ecoBomDraftId: draft.id,
+            operationName: operation.operationName,
+            timeMinutes: operation.timeMinutes,
+            workCenter: operation.workCenter
+          }))
+        })
+      );
+    }
+
+    await prisma.$transaction(operationsList);
+  }
+
+  return getEcoBomDraft(ecoId);
+};
+
 export default {
   createEco,
   updateEco,
   startEco,
   listEcos,
-  getEcoById
+  getEcoById,
+  getEcoProductDraft,
+  updateEcoProductDraft,
+  getEcoBomDraft,
+  updateEcoBomDraft
 };

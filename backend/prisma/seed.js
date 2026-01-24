@@ -65,18 +65,60 @@ async function main() {
       name: 'Eco Laptop Pro',
       salePrice: 1299.99,
       costPrice: 899.99,
+      attachments: [
+        {
+          name: 'eco-laptop-pro-spec-sheet.pdf',
+          url: 'https://example.com/attachments/eco-laptop-pro-spec-sheet.pdf',
+          type: 'spec-sheet',
+          sizeKb: 512
+        },
+        {
+          name: 'eco-laptop-pro-render.png',
+          url: 'https://example.com/attachments/eco-laptop-pro-render.png',
+          type: 'image',
+          sizeKb: 248
+        }
+      ]
     },
     {
       code: 'PROD-002',
       name: 'Green Smartphone X',
       salePrice: 799.99,
       costPrice: 549.99,
+      attachments: [
+        {
+          name: 'green-smartphone-x-datasheet.pdf',
+          url: 'https://example.com/attachments/green-smartphone-x-datasheet.pdf',
+          type: 'spec-sheet',
+          sizeKb: 376
+        },
+        {
+          name: 'green-smartphone-x-packaging.png',
+          url: 'https://example.com/attachments/green-smartphone-x-packaging.png',
+          type: 'image',
+          sizeKb: 192
+        }
+      ]
     },
     {
       code: 'PROD-003',
       name: 'Sustainable Tablet Plus',
       salePrice: 599.99,
       costPrice: 399.99,
+      attachments: [
+        {
+          name: 'sustainable-tablet-plus-bom-notes.txt',
+          url: 'https://example.com/attachments/sustainable-tablet-plus-bom-notes.txt',
+          type: 'notes',
+          sizeKb: 32
+        },
+        {
+          name: 'sustainable-tablet-plus-quickstart.pdf',
+          url: 'https://example.com/attachments/sustainable-tablet-plus-quickstart.pdf',
+          type: 'manual',
+          sizeKb: 284
+        }
+      ]
     },
   ];
 
@@ -149,6 +191,7 @@ async function main() {
         productName: p.name,
         salePrice: p.salePrice,
         costPrice: p.costPrice,
+        attachments: p.attachments,
         status: 'active', // must match your enum values
       },
       create: {
@@ -157,6 +200,7 @@ async function main() {
         productName: p.name,
         salePrice: p.salePrice,
         costPrice: p.costPrice,
+        attachments: p.attachments,
         status: 'active',
       },
     });
