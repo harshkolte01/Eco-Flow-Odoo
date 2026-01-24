@@ -1,0 +1,3 @@
+ALTER TABLE "EcoProductChange"
+  ALTER COLUMN "newSalePrice" TYPE DECIMAL(12,2),
+  ALTER COLUMN "newCostPrice" TYPE DECIMAL(12,2);

@@ -90,8 +90,8 @@ model ProductVersion {
   product          Product               @relation(fields: [productId], references: [id])
   versionNo        Int
   productName      String
-  salePrice        Decimal               @db.Decimal(10, 2)
-  costPrice        Decimal               @db.Decimal(10, 2)
+  salePrice        Decimal?              @db.Decimal(12, 2)
+  costPrice        Decimal?              @db.Decimal(12, 2)
   attachments      Json?
   status           ProductVersionStatus
   createdFromEcoId Int?
@@ -145,7 +145,7 @@ model BomComponent {
   bomVersion                BomVersion     @relation(fields: [bomVersionId], references: [id])
   componentProductVersionId Int
   componentProductVersion   ProductVersion @relation("BomComponentProductVersion", fields: [componentProductVersionId], references: [id])
-  quantity                  Decimal        @db.Decimal(10, 2)
+  quantity                  Decimal        @db.Decimal(12, 4)
 
   @@index([bomVersionId])
   @@index([componentProductVersionId])
@@ -227,8 +227,8 @@ model EcoProductChange {
   baseProductVersionId Int
   baseProductVersion   ProductVersion @relation(fields: [baseProductVersionId], references: [id])
   newProductName       String?
-  newSalePrice         Decimal?       @db.Decimal(10, 2)
-  newCostPrice         Decimal?       @db.Decimal(10, 2)
+  newSalePrice         Decimal?       @db.Decimal(12, 2)
+  newCostPrice         Decimal?       @db.Decimal(12, 2)
   newAttachments       Json?
 
   @@index([ecoId])
@@ -254,7 +254,7 @@ model EcoBomComponent {
   ecoBomDraft               EcoBomDraft    @relation(fields: [ecoBomDraftId], references: [id])
   componentProductVersionId Int
   componentProductVersion   ProductVersion @relation("EcoBomComponentProductVersion", fields: [componentProductVersionId], references: [id])
-  quantity                  Decimal        @db.Decimal(10, 2)
+  quantity                  Decimal        @db.Decimal(12, 4)
 
   @@index([ecoBomDraftId])
   @@index([componentProductVersionId])
