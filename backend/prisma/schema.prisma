@@ -1,0 +1,303 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ProductVersionStatus {
+  draft
+  active
+  archived
+}
+
+enum BomVersionStatus {
+  draft
+  active
+  archived
+}
+
+enum EcoType {
+  product
+  bom
+}
+
+enum EcoStatus {
+  draft
+  in_progress
+  approved
+  applied
+}
+
+enum ApprovalStatus {
+  pending
+  approved
+  rejected
+}
+
+enum ActivationEntityType {
+  product
+  bom
+}
+
+enum AuditEntityType {
+  product
+  bom
+  eco
+}
+
+model Role {
+  id    Int    @id @default(autoincrement())
+  name  String @unique
+  users User[]
+}
+
+model User {
+  id           Int       @id @default(autoincrement())
+  name         String
+  email        String    @unique
+  passwordHash String
+  roleId       Int
+  role         Role      @relation(fields: [roleId], references: [id])
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  products     Product[]
+  ecosRaised   Eco[]     @relation("EcoRaisedBy")
+  approvals    EcoApproval[]
+  auditLogs    AuditLog[]
+}
+
+model Product {
+  id           Int              @id @default(autoincrement())
+  productCode  String           @unique
+  createdById  Int?
+  createdBy    User?            @relation(fields: [createdById], references: [id])
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  versions     ProductVersion[]
+  bom          Bom?
+  ecos         Eco[]
+}
+
+model ProductVersion {
+  id               Int                   @id @default(autoincrement())
+  productId        Int
+  product          Product               @relation(fields: [productId], references: [id])
+  versionNo        Int
+  productName      String
+  salePrice        Decimal               @db.Decimal(10, 2)
+  costPrice        Decimal               @db.Decimal(10, 2)
+  attachments      Json?
+  status           ProductVersionStatus
+  createdFromEcoId Int?
+  createdFromEco   Eco?                  @relation("ProductVersionCreatedFromEco", fields: [createdFromEcoId], references: [id])
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  bomVersions      BomVersion[]
+  bomComponents    BomComponent[]        @relation("BomComponentProductVersion")
+  ecoProductChanges EcoProductChange[]
+  ecoBomComponents EcoBomComponent[]     @relation("EcoBomComponentProductVersion")
+  oldActivationLogs VersionActivationLog[] @relation("OldProductVersion")
+  newActivationLogs VersionActivationLog[] @relation("NewProductVersion")
+
+  @@unique([productId, versionNo])
+}
+
+model Bom {
+  id        Int          @id @default(autoincrement())
+  productId Int          @unique
+  product   Product      @relation(fields: [productId], references: [id])
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  versions  BomVersion[]
+  ecos      Eco[]
+}
+
+model BomVersion {
+  id               Int                @id @default(autoincrement())
+  bomId            Int
+  bom              Bom                @relation(fields: [bomId], references: [id])
+  productVersionId Int
+  productVersion   ProductVersion     @relation(fields: [productVersionId], references: [id])
+  versionNo        Int
+  status           BomVersionStatus
+  createdFromEcoId Int?
+  createdFromEco   Eco?               @relation("BomVersionCreatedFromEco", fields: [createdFromEcoId], references: [id])
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  components       BomComponent[]
+  operations       BomOperation[]
+  ecoBomDrafts     EcoBomDraft[]
+  oldActivationLogs VersionActivationLog[] @relation("OldBomVersion")
+  newActivationLogs VersionActivationLog[] @relation("NewBomVersion")
+
+  @@unique([bomId, versionNo])
+}
+
+model BomComponent {
+  id                        Int            @id @default(autoincrement())
+  bomVersionId              Int
+  bomVersion                BomVersion     @relation(fields: [bomVersionId], references: [id])
+  componentProductVersionId Int
+  componentProductVersion   ProductVersion @relation("BomComponentProductVersion", fields: [componentProductVersionId], references: [id])
+  quantity                  Decimal        @db.Decimal(10, 2)
+
+  @@index([bomVersionId])
+  @@index([componentProductVersionId])
+}
+
+model BomOperation {
+  id           Int        @id @default(autoincrement())
+  bomVersionId Int
+  bomVersion   BomVersion @relation(fields: [bomVersionId], references: [id])
+  operationName String
+  timeMinutes  Int
+  workCenter   String?
+
+  @@index([bomVersionId])
+}
+
+model EcoStage {
+  id               Int           @id @default(autoincrement())
+  name             String        @unique
+  sequenceOrder    Int
+  approvalRequired Boolean       @default(false)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  ecos             Eco[]
+  approvals        EcoApproval[]
+}
+
+model Eco {
+  id             Int                 @id @default(autoincrement())
+  title          String
+  ecoType        EcoType
+  productId      Int
+  product        Product             @relation(fields: [productId], references: [id])
+  bomId          Int?
+  bom            Bom?                @relation(fields: [bomId], references: [id])
+  raisedById     Int
+  raisedBy       User                @relation("EcoRaisedBy", fields: [raisedById], references: [id])
+  effectiveDate  DateTime?
+  versionUpdate  Boolean             @default(true)
+  currentStageId Int
+  currentStage   EcoStage            @relation(fields: [currentStageId], references: [id])
+  status         EcoStatus
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  approvals      EcoApproval[]
+  productChange  EcoProductChange?
+  bomDraft       EcoBomDraft?
+  createdProductVersions ProductVersion[] @relation("ProductVersionCreatedFromEco")
+  createdBomVersions BomVersion[]    @relation("BomVersionCreatedFromEco")
+  activationLogs VersionActivationLog[]
+
+  @@index([productId])
+  @@index([bomId])
+  @@index([raisedById])
+  @@index([currentStageId])
+}
+
+model EcoApproval {
+  id         Int            @id @default(autoincrement())
+  ecoId      Int
+  eco        Eco            @relation(fields: [ecoId], references: [id])
+  stageId    Int
+  stage      EcoStage       @relation(fields: [stageId], references: [id])
+  approverId Int
+  approver   User           @relation(fields: [approverId], references: [id])
+  status     ApprovalStatus
+  actionDate DateTime?
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  @@index([ecoId, stageId])
+  @@index([approverId])
+}
+
+model EcoProductChange {
+  id                   Int            @id @default(autoincrement())
+  ecoId                Int            @unique
+  eco                  Eco            @relation(fields: [ecoId], references: [id])
+  baseProductVersionId Int
+  baseProductVersion   ProductVersion @relation(fields: [baseProductVersionId], references: [id])
+  newProductName       String?
+  newSalePrice         Decimal?       @db.Decimal(10, 2)
+  newCostPrice         Decimal?       @db.Decimal(10, 2)
+  newAttachments       Json?
+
+  @@index([ecoId])
+  @@index([baseProductVersionId])
+}
+
+model EcoBomDraft {
+  id               Int        @id @default(autoincrement())
+  ecoId            Int        @unique
+  eco              Eco        @relation(fields: [ecoId], references: [id])
+  baseBomVersionId Int
+  baseBomVersion   BomVersion @relation(fields: [baseBomVersionId], references: [id])
+  components       EcoBomComponent[]
+  operations       EcoBomOperation[]
+
+  @@index([ecoId])
+  @@index([baseBomVersionId])
+}
+
+model EcoBomComponent {
+  id                        Int            @id @default(autoincrement())
+  ecoBomDraftId             Int
+  ecoBomDraft               EcoBomDraft    @relation(fields: [ecoBomDraftId], references: [id])
+  componentProductVersionId Int
+  componentProductVersion   ProductVersion @relation("EcoBomComponentProductVersion", fields: [componentProductVersionId], references: [id])
+  quantity                  Decimal        @db.Decimal(10, 2)
+
+  @@index([ecoBomDraftId])
+  @@index([componentProductVersionId])
+}
+
+model EcoBomOperation {
+  id            Int         @id @default(autoincrement())
+  ecoBomDraftId Int
+  ecoBomDraft   EcoBomDraft @relation(fields: [ecoBomDraftId], references: [id])
+  operationName String
+  timeMinutes   Int
+  workCenter    String?
+
+  @@index([ecoBomDraftId])
+}
+
+model VersionActivationLog {
+  id                  Int                 @id @default(autoincrement())
+  ecoId               Int
+  eco                 Eco                 @relation(fields: [ecoId], references: [id])
+  oldProductVersionId Int?
+  oldProductVersion   ProductVersion?     @relation("OldProductVersion", fields: [oldProductVersionId], references: [id])
+  newProductVersionId Int?
+  newProductVersion   ProductVersion?     @relation("NewProductVersion", fields: [newProductVersionId], references: [id])
+  oldBomVersionId     Int?
+  oldBomVersion       BomVersion?         @relation("OldBomVersion", fields: [oldBomVersionId], references: [id])
+  newBomVersionId     Int?
+  newBomVersion       BomVersion?         @relation("NewBomVersion", fields: [newBomVersionId], references: [id])
+  entityType          ActivationEntityType
+  activatedAt         DateTime            @default(now())
+}
+
+model AuditLog {
+  id            Int            @id @default(autoincrement())
+  entityType    AuditEntityType
+  entityId      String
+  action        String
+  oldValue      Json?
+  newValue      Json?
+  performedById Int
+  performedBy   User           @relation(fields: [performedById], references: [id])
+  timestamp     DateTime       @default(now())
+
+  @@index([performedById])
+  @@index([entityType, entityId])
+}
