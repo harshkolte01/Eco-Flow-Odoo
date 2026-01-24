@@ -92,7 +92,8 @@ export function EcoListPanel({
       in_progress: [],
       approved: [],
       applied: [],
-      active: []
+      active: [],
+      archived: []
     };
     ecos.forEach((eco) => {
       groups[eco.status]?.push(eco);
@@ -146,54 +147,65 @@ export function EcoListPanel({
               {grouped[status].length === 0 ? (
                 <p className="text-xs text-gray-400">No items</p>
               ) : (
-                grouped[status].map((eco) => (
-                  <div
-                    key={`${eco.kind ?? 'eco'}-${eco.id}`}
-                    className="rounded-md border border-gray-200 bg-white px-3 py-3 shadow-sm"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <p className="text-sm font-semibold text-gray-900">{eco.title}</p>
-                        <p className="text-xs text-gray-500">
-                          {eco.kind === 'product'
-                            ? 'Product'
-                            : `ECO · ${formatEcoType(eco.ecoType)}`}{' '}
-                          · {eco.currentStage?.name ?? '—'}
-                        </p>
-                      </div>
-                      <span
-                        className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${
-                          statusClasses[eco.status]
+                grouped[status].map((eco) => {
+                  const isDraftEco = eco.kind === 'eco' && eco.status === 'draft' && onStartEco;
+                  
+                  return (
+                    <div
+                      key={`${eco.kind ?? 'eco'}-${eco.id}`}
+                      onClick={isDraftEco ? () => onStartEco(eco.id) : undefined}
+                      role={isDraftEco ? 'button' : undefined}
+                      tabIndex={isDraftEco ? 0 : undefined}
+                      onKeyDown={isDraftEco ? (e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          onStartEco(eco.id);
+                        }
+                      } : undefined}
+                      className={`rounded-md border border-gray-200 bg-white px-3 py-3 shadow-sm transition-all ${isDraftEco
+                        ? 'cursor-pointer hover:border-emerald-300 hover:shadow-md hover:bg-emerald-50/30 active:scale-[0.98]'
+                        : ''
                         }`}
-                      >
-                        {statusLabels[eco.status]}
-                      </span>
-                    </div>
-                    <div className="mt-3 text-xs text-gray-600">
-                      {eco.product?.productCode ? (
-                        <span>
-                          {eco.product.productCode} · {eco.product.productName ?? 'Unnamed product'}
-                        </span>
-                      ) : (
-                        'No product linked'
-                      )}
-                    </div>
-                    <div className="mt-2 flex items-center justify-between text-[11px] text-gray-400">
-                      <span>
-                        {eco.updatedAt ? `Updated ${formatDate(eco.updatedAt)}` : 'No updates yet'}
-                      </span>
-                      {eco.kind === 'eco' && eco.status === 'draft' && onStartEco && (
-                        <button
-                          type="button"
-                          onClick={() => onStartEco(eco.id)}
-                          className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="text-left">
+                          <p className="text-sm font-semibold text-gray-900">{eco.title}</p>
+                          <p className="text-xs text-gray-500">
+                            {eco.kind === 'product'
+                              ? 'Product'
+                              : `ECO · ${formatEcoType(eco.ecoType)}`}{' '}
+                            · {eco.currentStage?.name ?? '—'}
+                          </p>
+                        </div>
+                        <span
+                          className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${statusClasses[eco.status]
+                            }`}
                         >
-                          Start
-                        </button>
-                      )}
+                          {statusLabels[eco.status]}
+                        </span>
+                      </div>
+                      <div className="mt-3 text-xs text-gray-600 text-left">
+                        {eco.product?.productCode ? (
+                          <span>
+                            {eco.product.productCode} · {eco.product.productName ?? 'Unnamed product'}
+                          </span>
+                        ) : (
+                          'No product linked'
+                        )}
+                      </div>
+                      <div className="mt-2 flex items-center justify-between text-[11px] text-gray-400">
+                        <span>
+                          {eco.updatedAt ? `Updated ${formatDate(eco.updatedAt)}` : 'No updates yet'}
+                        </span>
+                        {isDraftEco && (
+                          <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                            Click to Start
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>
@@ -212,60 +224,71 @@ export function EcoListPanel({
         <div className="col-span-2">Status</div>
       </div>
       <div className="divide-y divide-gray-100">
-        {ecos.map((eco) => (
-          <div
-            key={`${eco.kind ?? 'eco'}-${eco.id}`}
-            className="grid grid-cols-12 gap-2 px-4 py-3 text-sm text-gray-700"
-          >
-            <div className="col-span-3">
-              <p className="font-semibold text-gray-900">{eco.title}</p>
-              <p className="text-xs text-gray-400">
-                {eco.updatedAt ? `Updated ${formatDate(eco.updatedAt)}` : 'No updates yet'}
-              </p>
-            </div>
-            <div className="col-span-2 text-xs font-semibold text-gray-600">
-              {eco.kind === 'product'
-                ? 'Product'
-                : `ECO · ${formatEcoType(eco.ecoType)}`}
-            </div>
-            <div className="col-span-3 text-xs text-gray-600">
-              {eco.product?.productCode ? (
-                <span>
-                  {eco.product.productCode} · {eco.product.productName ?? 'Unnamed product'}
-                </span>
-              ) : (
-                'No product linked'
-              )}
-            </div>
-            <div className="col-span-2 text-xs text-gray-600">
-              {eco.kind === 'eco' ? (
-                <div className="flex flex-wrap items-center gap-2">
-                  <span>{eco.currentStage?.name ?? '—'}</span>
-                  {eco.status === 'draft' && onStartEco && (
-                    <button
-                      type="button"
-                      onClick={() => onStartEco(eco.id)}
-                      className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700"
-                    >
-                      Start
-                    </button>
-                  )}
-                </div>
-              ) : (
-                '—'
-              )}
-            </div>
-            <div className="col-span-2">
-              <span
-                className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
-                  statusClasses[eco.status]
+        {ecos.map((eco) => {
+          const isDraftEco = eco.kind === 'eco' && eco.status === 'draft' && onStartEco;
+          
+          return (
+            <div
+              key={`${eco.kind ?? 'eco'}-${eco.id}`}
+              onClick={isDraftEco ? () => onStartEco(eco.id) : undefined}
+              role={isDraftEco ? 'button' : undefined}
+              tabIndex={isDraftEco ? 0 : undefined}
+              onKeyDown={isDraftEco ? (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onStartEco(eco.id);
+                }
+              } : undefined}
+              className={`grid grid-cols-12 gap-2 px-4 py-3 text-sm text-gray-700 transition-all ${isDraftEco
+                ? 'cursor-pointer hover:bg-emerald-50/50 hover:shadow-[inset_4px_0_0_0_rgb(16,185,129)] active:bg-emerald-100/50'
+                : ''
                 }`}
-              >
-                {statusLabels[eco.status]}
-              </span>
+            >
+              <div className="col-span-3 text-left">
+                <p className="font-semibold text-gray-900">{eco.title}</p>
+                <p className="text-xs text-gray-400">
+                  {eco.updatedAt ? `Updated ${formatDate(eco.updatedAt)}` : 'No updates yet'}
+                </p>
+              </div>
+              <div className="col-span-2 text-xs font-semibold text-gray-600 text-left">
+                {eco.kind === 'product'
+                  ? 'Product'
+                  : `ECO · ${formatEcoType(eco.ecoType)}`}
+              </div>
+              <div className="col-span-3 text-xs text-gray-600 text-left">
+                {eco.product?.productCode ? (
+                  <span>
+                    {eco.product.productCode} · {eco.product.productName ?? 'Unnamed product'}
+                  </span>
+                ) : (
+                  'No product linked'
+                )}
+              </div>
+              <div className="col-span-2 text-xs text-gray-600 text-left">
+                {eco.kind === 'eco' ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span>{eco.currentStage?.name ?? '—'}</span>
+                    {isDraftEco && (
+                      <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+                        Click to Start
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  '—'
+                )}
+              </div>
+              <div className="col-span-2 text-left">
+                <span
+                  className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${statusClasses[eco.status]
+                    }`}
+                >
+                  {statusLabels[eco.status]}
+                </span>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

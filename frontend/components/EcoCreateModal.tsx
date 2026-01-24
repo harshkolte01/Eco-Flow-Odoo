@@ -16,6 +16,7 @@ interface EcoCreateModalProps {
   onClose: () => void;
   currentUser: CurrentUser | null;
   onComplete?: () => void;
+  initialEcoId?: number | null;
 }
 
 interface ProductOption {
@@ -103,7 +104,11 @@ const createLocalId = () => {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 };
 
-export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete }: EcoCreateModalProps) {
+const Skeleton = ({ className }: { className?: string }) => (
+  <div className={`animate-pulse rounded bg-gray-200 ${className}`} />
+);
+
+export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initialEcoId }: EcoCreateModalProps) {
   const [form, setForm] = useState<EcoFormState>(emptyForm);
   const [ecoId, setEcoId] = useState<number | null>(null);
   const [products, setProducts] = useState<ProductOption[]>([]);
@@ -139,10 +144,10 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete }: Eco
       ...emptyForm,
       raisedById: currentUserId
     });
-    setEcoId(null);
+    setEcoId(initialEcoId ?? null);
     setMessage(null);
     setStarted(false);
-    setIsSaved(false);
+    setIsSaved(!!initialEcoId);
     setShowCloseConfirm(false);
     setProductDraft(emptyProductDraft);
     setBomDraft(emptyBomDraft);
@@ -161,6 +166,41 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete }: Eco
 
     resetForm();
   }, [isOpen, currentUserId]);
+
+  useEffect(() => {
+    if (!isOpen || !initialEcoId) {
+      return;
+    }
+
+    const loadEco = async () => {
+      setLoadingOptions(true);
+      try {
+        const response = await apiFetch<{ eco: any }>(`/api/ecos/${initialEcoId}`);
+        const eco = response.data?.eco;
+
+        if (eco) {
+          setForm((prev) => ({
+            ...prev,
+            title: eco.title,
+            ecoType: eco.ecoType,
+            productId: String(eco.product?.id || ''),
+            bomId: String(eco.bom?.id || ''),
+            raisedById: String(eco.raisedBy?.id || ''),
+            effectiveDate: eco.effectiveDate ? new Date(eco.effectiveDate).toISOString().slice(0, 16) : '',
+            versionUpdate: eco.versionUpdate
+          }));
+        }
+      } catch (error) {
+        const messageText =
+          error instanceof ApiError ? error.message : 'Failed to load ECO details';
+        setMessage({ type: 'error', text: messageText });
+      } finally {
+        setLoadingOptions(false);
+      }
+    };
+
+    loadEco();
+  }, [isOpen, initialEcoId]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -724,6 +764,7 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete }: Eco
   const disableSave = disableInputs || isSaved;
   const disableStart = disableInputs || !isSaved;
   const disableDraftInputs = disableInputs || !ecoId;
+  const disableStructuralInputs = disableInputs || isSaved;
 
   if (!isOpen) {
     return null;
@@ -781,132 +822,161 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete }: Eco
             </div>
           )}
 
-          {loadingOptions && (
-            <div className="mb-4 text-xs text-gray-500">Loading ECO options...</div>
-          )}
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="sm:col-span-2">
-              <label className="text-sm font-medium text-gray-700">
-                Title <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={form.title}
-                onChange={updateField('title')}
-                disabled={disableInputs}
-                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:bg-gray-100"
-              />
+          {loadingOptions ? (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="sm:col-span-2 space-y-2">
+                <Skeleton className="h-4 w-16" />
+                <Skeleton className="h-9 w-full" />
+              </div>
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-9 w-full" />
+              </div>
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-9 w-full" />
+              </div>
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-28" />
+                <Skeleton className="h-9 w-full" />
+              </div>
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-16" />
+                <Skeleton className="h-9 w-full" />
+              </div>
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-9 w-full" />
+              </div>
+              <div className="sm:col-span-2 pt-6 flex items-center gap-3">
+                <Skeleton className="h-4 w-4" />
+                <Skeleton className="h-4 w-64" />
+              </div>
             </div>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <label className="text-sm font-medium text-gray-700">
+                  Title <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={form.title}
+                  onChange={updateField('title')}
+                  disabled={disableStructuralInputs}
+                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:bg-gray-100"
+                />
+              </div>
 
-            <div>
-              <label className="text-sm font-medium text-gray-700">
-                ECO Type <span className="text-red-500">*</span>
-              </label>
-              <select
-                value={form.ecoType}
-                onChange={handleEcoTypeChange}
-                disabled={disableInputs}
-                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:bg-gray-100"
-              >
-                <option value="">Select ECO type</option>
-                <option value="product">Product</option>
-                <option value="bom">Bills of Materials</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="text-sm font-medium text-gray-700">
-                Product <span className="text-red-500">*</span>
-              </label>
-              <select
-                value={form.productId}
-                onChange={handleProductChange}
-                disabled={disableInputs}
-                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:bg-gray-100"
-              >
-                <option value="">Select product</option>
-                {products.map((product) => (
-                  <option key={product.productId} value={product.productId}>
-                    {product.productCode} - {product.productName}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {form.ecoType === 'bom' && (
               <div>
                 <label className="text-sm font-medium text-gray-700">
-                  Bill of Materials <span className="text-red-500">*</span>
+                  ECO Type <span className="text-red-500">*</span>
                 </label>
                 <select
-                  value={form.bomId}
-                  onChange={updateField('bomId')}
-                  disabled={disableInputs || !form.productId}
+                  value={form.ecoType}
+                  onChange={handleEcoTypeChange}
+                  disabled={disableStructuralInputs}
                   className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:bg-gray-100"
                 >
-                  <option value="">Select BoM version</option>
-                  {boms.map((bom) => (
-                    <option key={`${bom.bomId}-${bom.versionNo}`} value={bom.bomId}>
-                      BoM #{bom.bomId} (v{bom.versionNo})
+                  <option value="">Select ECO type</option>
+                  <option value="product">Product</option>
+                  <option value="bom">Bills of Materials</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-gray-700">
+                  Product <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={form.productId}
+                  onChange={handleProductChange}
+                  disabled={disableStructuralInputs}
+                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:bg-gray-100"
+                >
+                  <option value="">Select product</option>
+                  {products.map((product) => (
+                    <option key={product.productId} value={product.productId}>
+                      {product.productCode} - {product.productName}
                     </option>
                   ))}
                 </select>
               </div>
-            )}
 
-            <div>
-              <label className="text-sm font-medium text-gray-700">
-                User <span className="text-red-500">*</span>
-              </label>
-              <select
-                value={form.raisedById}
-                onChange={updateField('raisedById')}
-                disabled={!isAdmin || disableInputs}
-                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:bg-gray-100"
-              >
-                <option value="">Select user</option>
-                {users.map((userOption) => (
-                  <option key={userOption.id} value={userOption.id}>
-                    {userOption.name} ({userOption.loginId})
-                  </option>
-                ))}
-              </select>
-              {!isAdmin && (
-                <p className="mt-1 text-xs text-gray-500">
-                  Raised by is locked to your account.
-                </p>
+              {form.ecoType === 'bom' && (
+                <div>
+                  <label className="text-sm font-medium text-gray-700">
+                    Bill of Materials <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={form.bomId}
+                    onChange={updateField('bomId')}
+                    disabled={disableStructuralInputs || !form.productId}
+                    className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:bg-gray-100"
+                  >
+                    <option value="">Select BoM version</option>
+                    {boms.map((bom) => (
+                      <option key={`${bom.bomId}-${bom.versionNo}`} value={bom.bomId}>
+                        BoM #{bom.bomId} (v{bom.versionNo})
+                      </option>
+                    ))}
+                  </select>
+                </div>
               )}
-            </div>
 
-            <div>
-              <label className="text-sm font-medium text-gray-700">Effective Date</label>
-              <input
-                type="datetime-local"
-                value={form.effectiveDate}
-                onChange={updateField('effectiveDate')}
-                disabled={disableInputs}
-                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:bg-gray-100"
-              />
-              <p className="mt-1 text-xs text-gray-500">
-                Auto-populated when ECO is done.
-              </p>
-            </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700">
+                  User <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={form.raisedById}
+                  onChange={updateField('raisedById')}
+                  disabled={!isAdmin || disableStructuralInputs}
+                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:bg-gray-100"
+                >
+                  <option value="">Select user</option>
+                  {users.map((userOption) => (
+                    <option key={userOption.id} value={userOption.id}>
+                      {userOption.name} ({userOption.loginId})
+                    </option>
+                  ))}
+                </select>
+                {!isAdmin && (
+                  <p className="mt-1 text-xs text-gray-500">
+                    Raised by is locked to your account.
+                  </p>
+                )}
+              </div>
 
-            <div className="flex items-center gap-3 pt-6">
-              <input
-                id="versionUpdate"
-                type="checkbox"
-                checked={form.versionUpdate}
-                onChange={updateField('versionUpdate')}
-                disabled={disableInputs}
-                className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
-              />
-              <label htmlFor="versionUpdate" className="text-sm text-gray-700">
-                Version Update (create a new version on approval)
-              </label>
+              <div>
+                <label className="text-sm font-medium text-gray-700">Effective Date</label>
+                <input
+                  type="datetime-local"
+                  value={form.effectiveDate}
+                  onChange={updateField('effectiveDate')}
+                  disabled={disableInputs}
+                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:bg-gray-100 disabled:text-gray-500"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Auto-populated when ECO is done.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3 pt-6">
+                <input
+                  id="versionUpdate"
+                  type="checkbox"
+                  checked={form.versionUpdate}
+                  onChange={updateField('versionUpdate')}
+                  disabled={disableInputs}
+                  className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                />
+                <label htmlFor="versionUpdate" className="text-sm text-gray-700">
+                  Version Update (create a new version on approval)
+                </label>
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="mt-6 border-t border-gray-200 pt-5">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -941,12 +1011,85 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete }: Eco
               </div>
             )}
 
-            {draftLoading && (
-              <div className="mt-3 text-xs text-gray-500">Loading draft data...</div>
-            )}
-
-            {form.ecoType === 'product' && (
-              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            {draftLoading ? (
+              <div className="mt-4 space-y-6">
+                {form.ecoType === 'product' ? (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="sm:col-span-2 space-y-2">
+                      <Skeleton className="h-4 w-24" />
+                      <Skeleton className="h-9 w-full" />
+                    </div>
+                    <div className="space-y-2">
+                      <Skeleton className="h-4 w-20" />
+                      <Skeleton className="h-9 w-full" />
+                    </div>
+                    <div className="space-y-2">
+                      <Skeleton className="h-4 w-20" />
+                      <Skeleton className="h-9 w-full" />
+                    </div>
+                    <div className="sm:col-span-2 space-y-2">
+                      <Skeleton className="h-4 w-24" />
+                      <Skeleton className="h-24 w-full" />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    <div className="space-y-3">
+                      <Skeleton className="h-4 w-24" />
+                      <div className="rounded-md border border-gray-200 overflow-hidden">
+                        <div className="bg-gray-50 px-3 py-2 border-b border-gray-200">
+                          <div className="grid grid-cols-12 gap-2">
+                            <Skeleton className="col-span-8 h-3 w-16" />
+                            <Skeleton className="col-span-4 h-3 w-12" />
+                          </div>
+                        </div>
+                        <div className="p-3 space-y-3">
+                          <div className="grid grid-cols-12 gap-2">
+                            <div className="col-span-8 space-y-1">
+                              <Skeleton className="h-4 w-32" />
+                              <Skeleton className="h-3 w-16" />
+                            </div>
+                            <Skeleton className="col-span-4 h-8 w-full" />
+                          </div>
+                          <div className="grid grid-cols-12 gap-2">
+                            <div className="col-span-8 space-y-1">
+                              <Skeleton className="h-4 w-40" />
+                              <Skeleton className="h-3 w-16" />
+                            </div>
+                            <Skeleton className="col-span-4 h-8 w-full" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <Skeleton className="h-4 w-24" />
+                        <Skeleton className="h-6 w-24" />
+                      </div>
+                      <div className="rounded-md border border-gray-200 overflow-hidden">
+                        <div className="bg-gray-50 px-3 py-2 border-b border-gray-200">
+                          <div className="grid grid-cols-12 gap-2">
+                            <Skeleton className="col-span-5 h-3 w-16" />
+                            <Skeleton className="col-span-3 h-3 w-16" />
+                            <Skeleton className="col-span-4 h-3 w-12" />
+                          </div>
+                        </div>
+                        <div className="p-3 space-y-3">
+                          <div className="grid grid-cols-12 gap-2">
+                            <Skeleton className="col-span-5 h-8 w-full" />
+                            <Skeleton className="col-span-3 h-8 w-full" />
+                            <Skeleton className="col-span-4 h-8 w-full" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <>
+                {form.ecoType === 'product' && (
+                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <div className="sm:col-span-2">
                   <label className="text-sm font-medium text-gray-700">
                     Product Name
@@ -1118,6 +1261,8 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete }: Eco
                   )}
                 </div>
               </div>
+            )}
+              </>
             )}
           </div>
 
