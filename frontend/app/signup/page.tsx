@@ -4,6 +4,7 @@ import { useState, useEffect, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
+import { ApiError } from '@/lib/api';
 
 export default function SignupPage() {
   const [loginId, setLoginId] = useState('');
@@ -14,6 +15,7 @@ export default function SignupPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
+  const [backendErrors, setBackendErrors] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<{
     loginId?: string;
@@ -102,7 +104,13 @@ export default function SignupPage() {
       await signup(loginId, name, email, password);
       // Navigation is handled by the signup function
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Signup failed');
+      if (err instanceof ApiError && err.errors && err.errors.length > 0) {
+        setBackendErrors(err.errors);
+        setError('Validation failed');
+      } else {
+        setError(err instanceof Error ? err.message : 'Signup failed');
+        setBackendErrors([]);
+      }
     } finally {
       setLoading(false);
     }
@@ -141,11 +149,20 @@ export default function SignupPage() {
             </div>
 
             {error && (
-              <div className="mb-6 flex items-center gap-3 rounded-lg bg-red-50/50 p-4 text-sm text-red-600 border border-red-100">
-                <svg className="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-                {error}
+              <div className="mb-6 rounded-lg bg-red-50/50 p-4 text-sm text-red-600 border border-red-100">
+                <div className="flex items-center gap-3 mb-1">
+                  <svg className="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  <span className="font-bold">{error}</span>
+                </div>
+                {backendErrors.length > 0 && (
+                  <ul className="list-disc list-inside mt-2 space-y-1 ml-8">
+                    {backendErrors.map((err, index) => (
+                      <li key={index} className="leading-relaxed">{err}</li>
+                    ))}
+                  </ul>
+                )}
               </div>
             )}
 

@@ -4,12 +4,14 @@ import { useState, useEffect, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
+import { ApiError } from '@/lib/api';
 
 export default function LoginPage() {
   const [loginId, setLoginId] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [backendErrors, setBackendErrors] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<{
     loginId?: string;
@@ -52,6 +54,7 @@ export default function LoginPage() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
+    setBackendErrors([]);
     setFieldErrors({});
 
     // Client-side validation
@@ -65,7 +68,13 @@ export default function LoginPage() {
       await login(loginId, password);
       // Navigation is handled by the login function
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed');
+      if (err instanceof ApiError && err.errors && err.errors.length > 0) {
+        setBackendErrors(err.errors);
+        setError('Validation failed');
+      } else {
+        setError(err instanceof Error ? err.message : 'Login failed');
+        setBackendErrors([]);
+      }
     } finally {
       setLoading(false);
     }
@@ -96,7 +105,6 @@ export default function LoginPage() {
             <div className="mb-8 text-center">
               <div className="mx-auto mb-4 h-12 w-12 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36.5-8 3C6.72.75 4.07.96 2 4.06c-.28 1.15-.28 2.35 0 3.5A5.403 5.403 0 0 0 1 11.06c0 3.51 2.98 5.49 5.96 5.46a4.816 4.816 0 0 0-1.01 3.44V22h18.98z" /></svg>
-                {/* Using a generic eco-ish icon or just a nice logo placeholder */}
               </div>
               <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Welcome back</h1>
               <p className="mt-2 text-sm text-gray-500">
@@ -105,11 +113,20 @@ export default function LoginPage() {
             </div>
 
             {error && (
-              <div className="mb-6 flex items-center gap-3 rounded-lg bg-red-50/50 p-4 text-sm text-red-600 border border-red-100">
-                <svg className="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-                {error}
+              <div className="mb-6 rounded-lg bg-red-50/50 p-4 text-sm text-red-600 border border-red-100">
+                <div className="flex items-center gap-3 mb-1">
+                  <svg className="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  <span className="font-bold">{error}</span>
+                </div>
+                {backendErrors.length > 0 && (
+                  <ul className="list-disc list-inside mt-2 space-y-1 ml-8">
+                    {backendErrors.map((err, index) => (
+                      <li key={index} className="leading-relaxed">{err}</li>
+                    ))}
+                  </ul>
+                )}
               </div>
             )}
 

@@ -11,10 +11,26 @@ interface ApiFetchOptions {
   auth?: boolean;
 }
 
-interface ApiResponse<T = any> {
+export interface ApiResponse<T = any> {
   success: boolean;
   data?: T;
   message?: string;
+  errors?: string[];
+}
+
+/**
+ * Custom error class for API failures
+ */
+export class ApiError extends Error {
+  errors?: string[];
+  statusCode: number;
+
+  constructor(message: string, statusCode: number, errors?: string[]) {
+    super(message);
+    this.name = 'ApiError';
+    this.statusCode = statusCode;
+    this.errors = errors;
+  }
 }
 
 /**
@@ -22,7 +38,7 @@ interface ApiResponse<T = any> {
  * @param path - API path (e.g., '/api/auth/login')
  * @param options - Fetch options including method, body, and auth flag
  * @returns Parsed JSON response
- * @throws Error with backend message on non-2xx responses
+ * @throws ApiError with backend message and errors on non-2xx responses
  */
 export async function apiFetch<T = any>(
   path: string,
@@ -74,18 +90,23 @@ export async function apiFetch<T = any>(
 
     // Handle non-2xx responses
     if (!response.ok) {
-      // Extract error message from backend response or use fallback
-      const errorMessage =
-        data.message || `Request failed with status ${response.status}`;
-      throw new Error(errorMessage);
+      // Extract error message and potential validation errors
+      throw new ApiError(
+        data.message || `Request failed with status ${response.status}`,
+        response.status,
+        data.errors
+      );
     }
 
     return data;
   } catch (error) {
-    // Re-throw with proper error message
-    if (error instanceof Error) {
+    // Re-throw ApiError as is, or wrap other errors
+    if (error instanceof ApiError) {
       throw error;
     }
-    throw new Error('An unexpected error occurred');
+    if (error instanceof Error) {
+      throw new ApiError(error.message, 500);
+    }
+    throw new ApiError('An unexpected error occurred', 500);
   }
 }
