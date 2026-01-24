@@ -4,7 +4,10 @@ import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { useAuth } from '@/context/AuthContext';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { EcoCreateModal } from '@/components/EcoCreateModal';
+import { apiFetch, ApiError } from '@/lib/api';
+import { EcoListPanel, EcoListItem } from '@/components/EcoListPanel';
 
 export default function Home() {
   return (
@@ -23,11 +26,138 @@ export default function Home() {
 function Dashboard() {
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
+  const [isEcoModalOpen, setIsEcoModalOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
+  const [ecoItems, setEcoItems] = useState<EcoListItem[]>([]);
+  const [productItems, setProductItems] = useState<EcoListItem[]>([]);
+  const [overviewLoading, setOverviewLoading] = useState(true);
+  const [overviewError, setOverviewError] = useState<string | null>(null);
+  const [activeSearch, setActiveSearch] = useState('');
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [startConfirmEco, setStartConfirmEco] = useState<EcoListItem | null>(null);
+  const [startConfirmError, setStartConfirmError] = useState<string | null>(null);
+  const [startConfirmLoading, setStartConfirmLoading] = useState(false);
+  const overviewItems = useMemo(
+    () => [...ecoItems, ...productItems],
+    [ecoItems, productItems]
+  );
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Searching for:', searchQuery);
+    setActiveSearch(searchQuery.trim());
   };
+
+  const refreshEcos = () => {
+    setRefreshKey((prev) => prev + 1);
+  };
+
+  const handleStartEco = async (ecoId: number) => {
+    try {
+      await apiFetch(`/api/ecos/${ecoId}/start`, { method: 'POST' });
+      refreshEcos();
+      return true;
+    } catch (error) {
+      return false;
+    }
+  };
+
+  const openStartConfirm = (ecoId: number) => {
+    const eco = ecoItems.find((item) => item.id === ecoId) ?? null;
+    setStartConfirmEco(eco);
+    setStartConfirmError(null);
+  };
+
+  const closeStartConfirm = () => {
+    if (startConfirmLoading) {
+      return;
+    }
+    setStartConfirmEco(null);
+    setStartConfirmError(null);
+  };
+
+  const confirmStartEco = async () => {
+    if (!startConfirmEco) {
+      return;
+    }
+    setStartConfirmLoading(true);
+    setStartConfirmError(null);
+    const success = await handleStartEco(startConfirmEco.id);
+    if (success) {
+      setStartConfirmEco(null);
+    } else {
+      setStartConfirmError('Failed to start ECO. Please try again.');
+    }
+    setStartConfirmLoading(false);
+  };
+
+  const loadOverview = async () => {
+    setOverviewLoading(true);
+    setOverviewError(null);
+
+    try {
+      const params = new URLSearchParams();
+      if (activeSearch) {
+        params.set('q', activeSearch);
+      }
+      params.set('scope', 'all');
+      const queryString = params.toString();
+      const ecoPath = queryString ? `/api/ecos?${queryString}` : '/api/ecos';
+
+      const [ecoResponse, productResponse] = await Promise.all([
+        apiFetch<{ ecos: EcoListItem[] }>(ecoPath),
+        apiFetch<{ products: { productId: number; productCode: string; productName: string }[] }>(
+          '/api/products?status=active'
+        )
+      ]);
+
+      const ecoList =
+        ecoResponse.data?.ecos.map((eco) => ({
+          ...eco,
+          kind: 'eco' as const
+        })) ?? [];
+
+      const searchValue = activeSearch.toLowerCase();
+      const productList =
+        productResponse.data?.products
+          .filter((product) => {
+            if (!searchValue) {
+              return true;
+            }
+            const haystack = `${product.productCode} ${product.productName}`.toLowerCase();
+            return haystack.includes(searchValue);
+          })
+          .map((product) => ({
+            id: product.productId,
+            kind: 'product' as const,
+            title: product.productName || product.productCode,
+            ecoType: undefined,
+            status: 'active' as const,
+            effectiveDate: null,
+            versionUpdate: true,
+            createdAt: null,
+            updatedAt: null,
+            currentStage: null,
+            product: {
+              id: product.productId,
+              productCode: product.productCode,
+              productName: product.productName
+            }
+          })) ?? [];
+
+      setEcoItems(ecoList);
+      setProductItems(productList);
+    } catch (error) {
+      const message =
+        error instanceof ApiError ? error.message : 'Failed to load overview data';
+      setOverviewError(message);
+    } finally {
+      setOverviewLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadOverview();
+  }, [activeSearch, refreshKey]);
 
   return (
     <div className="bg-gray-50">
@@ -35,7 +165,10 @@ function Dashboard() {
       <div className="sticky top-12 z-40 bg-gray-50/50 backdrop-blur-sm border-b border-gray-200">
         <div className="flex h-12 items-center justify-between px-4">
           <div className="flex items-center gap-4">
-            <button className="px-6 py-1.5 bg-white border border-gray-300 rounded text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 hover:border-emerald-500 active:scale-95 transition-all">
+            <button
+              onClick={() => setIsEcoModalOpen(true)}
+              className="px-6 py-1.5 bg-white border border-gray-300 rounded text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 hover:border-emerald-500 active:scale-95 transition-all"
+            >
               New
             </button>
           </div>
@@ -58,12 +191,32 @@ function Dashboard() {
           </div>
 
           <div className="flex items-center gap-1 bg-white border border-gray-300 rounded-md p-1 shadow-sm">
-            <button className="p-1.5 text-gray-600 hover:text-emerald-600 hover:bg-emerald-50 rounded transition-colors" title="List View">
+            <button
+              type="button"
+              onClick={() => setViewMode('list')}
+              aria-pressed={viewMode === 'list'}
+              className={`rounded p-1.5 transition-colors ${
+                viewMode === 'list'
+                  ? 'bg-emerald-50 text-emerald-600'
+                  : 'text-gray-600 hover:text-emerald-600 hover:bg-emerald-50'
+              }`}
+              title="List View"
+            >
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
               </svg>
             </button>
-            <button className="p-1.5 text-gray-600 hover:text-emerald-600 hover:bg-emerald-50 rounded transition-colors" title="Kanban View">
+            <button
+              type="button"
+              onClick={() => setViewMode('kanban')}
+              aria-pressed={viewMode === 'kanban'}
+              className={`rounded p-1.5 transition-colors ${
+                viewMode === 'kanban'
+                  ? 'bg-emerald-50 text-emerald-600'
+                  : 'text-gray-600 hover:text-emerald-600 hover:bg-emerald-50'
+              }`}
+              title="Kanban View"
+            >
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
               </svg>
@@ -73,67 +226,75 @@ function Dashboard() {
       </div>
 
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="rounded-lg bg-white px-5 py-6 shadow sm:px-6">
-          <h2 className="text-2xl font-bold text-gray-900">Dashboard</h2>
-          <p className="mt-1 text-sm text-gray-600">
-            Welcome to your ECOFlow dashboard
-          </p>
-
-          <div className="mt-6 border-t border-gray-200 pt-6">
-            <dl className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2">
-              <div className="sm:col-span-1">
-                <dt className="text-sm font-medium text-gray-500">Login ID</dt>
-                <dd className="mt-1 text-sm text-gray-900">{user?.loginId}</dd>
-              </div>
-
-              <div className="sm:col-span-1">
-                <dt className="text-sm font-medium text-gray-500">Full name</dt>
-                <dd className="mt-1 text-sm text-gray-900">{user?.name}</dd>
-              </div>
-
-              <div className="sm:col-span-1">
-                <dt className="text-sm font-medium text-gray-500">Email address</dt>
-                <dd className="mt-1 text-sm text-gray-900">{user?.email}</dd>
-              </div>
-
-              <div className="sm:col-span-1">
-                <dt className="text-sm font-medium text-gray-500">Role</dt>
-                <dd className="mt-1">
-                  <span className="inline-flex rounded-full bg-blue-100 px-2 py-1 text-xs font-semibold text-blue-800">
-                    {user?.role}
-                  </span>
-                </dd>
-              </div>
-
-              <div className="sm:col-span-1">
-                <dt className="text-sm font-medium text-gray-500">User ID</dt>
-                <dd className="mt-1 text-sm text-gray-900">{user?.id}</dd>
-              </div>
-            </dl>
+        <div className="mb-8 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">ECO Overview</h2>
+              <p className="text-xs text-gray-500">
+                Track ECOs alongside linked product metadata.
+              </p>
+            </div>
+            <div className="text-xs font-semibold text-gray-500">
+              {overviewItems.length} items
+            </div>
           </div>
+          <EcoListPanel
+            viewMode={viewMode}
+            ecos={overviewItems}
+            loading={overviewLoading}
+            error={overviewError}
+            onRetry={refreshEcos}
+            onStartEco={openStartConfirm}
+          />
+        </div>
+      </main>
 
-          <div className="mt-6 border-t border-gray-200 pt-6">
-            <div className="rounded-md bg-blue-50 p-4">
-              <div className="flex">
-                <div className="flex-shrink-0">
-                  <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                  </svg>
-                </div>
-                <div className="ml-3 flex-1">
-                  <h3 className="text-sm font-medium text-blue-800">Authentication successful</h3>
-                  <div className="mt-2 text-sm text-blue-700">
-                    <p>
-                      You are now logged in with the <strong>{user?.role}</strong> role.
-                      Your session is persisted in localStorage and will be restored on page reload.
-                    </p>
-                  </div>
-                </div>
+      <EcoCreateModal
+        isOpen={isEcoModalOpen}
+        onClose={() => setIsEcoModalOpen(false)}
+        currentUser={user}
+        onComplete={refreshEcos}
+      />
+      {startConfirmEco && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
+          <div className="w-full max-w-md rounded-lg border border-gray-200 bg-white p-5 shadow-xl">
+            <h3 className="text-base font-semibold text-gray-900">Start this ECO?</h3>
+            <p className="mt-2 text-sm text-gray-600">
+              Starting will move the ECO to In Progress and lock the draft fields.
+            </p>
+            <div className="mt-3 rounded-md border border-gray-100 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+              <div className="font-semibold text-gray-800">{startConfirmEco.title}</div>
+              <div className="mt-1">
+                {startConfirmEco.ecoType ? `ECO · ${startConfirmEco.ecoType}` : 'ECO'} ·{' '}
+                {startConfirmEco.product?.productCode ?? 'No product'}
               </div>
+            </div>
+            {startConfirmError && (
+              <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                {startConfirmError}
+              </div>
+            )}
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={closeStartConfirm}
+                disabled={startConfirmLoading}
+                className="rounded-md border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-600 hover:border-gray-300 disabled:cursor-not-allowed"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmStartEco}
+                disabled={startConfirmLoading}
+                className="rounded-md bg-emerald-600 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-300"
+              >
+                {startConfirmLoading ? 'Starting...' : 'Start ECO'}
+              </button>
             </div>
           </div>
         </div>
-      </main>
+      )}
     </div>
   );
 }

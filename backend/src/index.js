@@ -7,6 +7,9 @@ import errorHandler from './middlewares/error.handler.js';
 // Import routes
 import authRoutes from './modules/auth/auth.routes.js';
 import usersRoutes from './modules/users/users.routes.js';
+import ecosRoutes from './modules/ecos/ecos.routes.js';
+import productsRoutes from './modules/products/products.routes.js';
+import bomsRoutes from './modules/boms/boms.routes.js';
 
 // Initialize Express app
 const app = express();
@@ -48,6 +51,9 @@ app.get('/health', async (req, res) => {
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', usersRoutes);
+app.use('/api/ecos', ecosRoutes);
+app.use('/api/products', productsRoutes);
+app.use('/api/boms', bomsRoutes);
 
 // 404 handler
 app.use((req, res) => {
@@ -66,6 +72,9 @@ app.listen(PORT, () => {
   console.log(`📊 Health check: http://localhost:${PORT}/health`);
   console.log(`🔐 Auth endpoints: http://localhost:${PORT}/api/auth`);
   console.log(`👥 Users endpoints: http://localhost:${PORT}/api/users`);
+  console.log(`🧾 ECO endpoints: http://localhost:${PORT}/api/ecos`);
+  console.log(`📦 Products endpoints: http://localhost:${PORT}/api/products`);
+  console.log(`🧩 BoMs endpoints: http://localhost:${PORT}/api/boms`);
 });
 
 // Graceful shutdown

@@ -39,4 +39,14 @@ export const updateUserRoleController = asyncHandler(async (req, res) => {
   success(res, { user }, 200);
 });
 
-export default { getUsersController, updateUserRoleController };
+/**
+ * GET /users/lookup
+ * Get lightweight users list for dropdowns
+ */
+export const getUserLookupController = asyncHandler(async (req, res) => {
+  const users = await usersService.getUserLookup();
+
+  success(res, { users }, 200);
+});
+
+export default { getUsersController, updateUserRoleController, getUserLookupController };

@@ -1,5 +1,9 @@
 import express from 'express';
-import { getUsersController, updateUserRoleController } from './users.controller.js';
+import {
+  getUsersController,
+  updateUserRoleController,
+  getUserLookupController
+} from './users.controller.js';
 import { requireAuth, requireRole } from '../../middlewares/auth.middleware.js';
 import { validate } from '../../middlewares/validate.middleware.js';
 import { updateRoleSchema, userIdParamSchema } from './users.validation.js';
@@ -15,6 +19,18 @@ const router = express.Router();
  * @query   limit - Items per page (optional, default: 20)
  */
 router.get('/', requireAuth, requireRole('admin'), getUsersController);
+
+/**
+ * @route   GET /users/lookup
+ * @desc    Get lightweight users list for ECO dropdowns
+ * @access  Private (engineering/approver/admin)
+ */
+router.get(
+  '/lookup',
+  requireAuth,
+  requireRole('engineering', 'approver', 'admin'),
+  getUserLookupController
+);
 
 /**
  * @route   PATCH /users/:id/role

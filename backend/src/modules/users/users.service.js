@@ -121,4 +121,22 @@ export const updateUserRole = async (userId, roleName, currentUserId) => {
   return formatUserResponse(updatedUser);
 };
 
-export default { getUsers, updateUserRole };
+/**
+ * Get user lookup list for ECO dropdowns
+ * @returns {Array} Lightweight users list
+ */
+export const getUserLookup = async () => {
+  const users = await prisma.user.findMany({
+    select: {
+      id: true,
+      name: true,
+      loginId: true,
+      email: true
+    },
+    orderBy: { name: 'asc' }
+  });
+
+  return users;
+};
+
+export default { getUsers, updateUserRole, getUserLookup };

@@ -28,30 +28,39 @@ const isValidEmail = (email) => {
  */
 const validateField = (field, value, rules) => {
   const errors = [];
+  const isString = typeof value === 'string';
+  const isMissing = value === null || value === undefined;
+  const isEmptyString = isString && value.trim() === '';
+
+  // Sanity checks:
+  // - required string: "  " -> error
+  // - required boolean: false -> ok
+  // - required number: 0 -> ok
+  // - optional number: undefined -> ok
 
   // Required check
-  if (rules.required && (!value || value.trim() === '')) {
+  if (rules.required && (isMissing || isEmptyString)) {
     errors.push(`${field} is required`);
     return errors; // Return early if required field is missing
   }
 
   // Skip further validation if value is empty and not required
-  if (!value || value.trim() === '') {
+  if (isMissing || isEmptyString) {
     return errors;
   }
 
   // Type validation
-  if (rules.type === 'email' && !isValidEmail(value)) {
+  if (rules.type === 'email' && (!isString || !isValidEmail(value))) {
     errors.push(`${field} must be a valid email address`);
   }
 
   // Min length
-  if (rules.minLength && value.length < rules.minLength) {
+  if (rules.minLength && isString && value.length < rules.minLength) {
     errors.push(`${field} must be at least ${rules.minLength} characters long`);
   }
 
   // Max length
-  if (rules.maxLength && value.length > rules.maxLength) {
+  if (rules.maxLength && isString && value.length > rules.maxLength) {
     errors.push(`${field} must not exceed ${rules.maxLength} characters`);
   }
 
