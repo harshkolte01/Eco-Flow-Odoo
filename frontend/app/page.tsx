@@ -25,6 +25,10 @@ export default function Home() {
 
 function Dashboard() {
   const { user } = useAuth();
+  const role = user?.role ?? 'engineering';
+  const isAdmin = role === 'admin';
+  const isOperations = role === 'operations';
+  const isEngineering = role === 'engineering';
   const [searchQuery, setSearchQuery] = useState('');
   const [isEcoModalOpen, setIsEcoModalOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
@@ -95,19 +99,44 @@ function Dashboard() {
     setOverviewError(null);
 
     try {
+      if (!user) {
+        setEcoItems([]);
+        setProductItems([]);
+        setOverviewLoading(false);
+        return;
+      }
       const params = new URLSearchParams();
       if (activeSearch) {
         params.set('q', activeSearch);
       }
-      params.set('scope', 'all');
-      const queryString = params.toString();
-      const ecoPath = queryString ? `/api/ecos?${queryString}` : '/api/ecos';
+      if (!isOperations) {
+        params.set('scope', isEngineering ? 'mine' : 'all');
+      }
+      const ecoQueryString = params.toString();
+      const ecoPath = ecoQueryString ? `/api/ecos?${ecoQueryString}` : '/api/ecos';
+
+      const productStatus = isAdmin ? 'all' : isOperations ? 'active' : 'active,archived';
+      const productParams = new URLSearchParams();
+      if (productStatus) {
+        productParams.set('status', productStatus);
+      }
+      const productQueryString = productParams.toString();
+      const productPath = productQueryString
+        ? `/api/products?${productQueryString}`
+        : '/api/products';
 
       const [ecoResponse, productResponse] = await Promise.all([
-        apiFetch<{ ecos: EcoListItem[] }>(ecoPath),
-        apiFetch<{ products: { productId: number; productCode: string; productName: string }[] }>(
-          '/api/products?status=active'
-        )
+        isOperations
+          ? Promise.resolve({ data: { ecos: [] as EcoListItem[] } })
+          : apiFetch<{ ecos: EcoListItem[] }>(ecoPath),
+        apiFetch<{
+          products: {
+            productId: number;
+            productCode: string;
+            productName: string;
+            status: 'active' | 'archived';
+          }[];
+        }>(productPath)
       ]);
 
       const ecoList =
@@ -131,7 +160,7 @@ function Dashboard() {
             kind: 'product' as const,
             title: product.productName || product.productCode,
             ecoType: undefined,
-            status: 'active' as const,
+            status: product.status,
             effectiveDate: null,
             versionUpdate: true,
             createdAt: null,
@@ -157,7 +186,7 @@ function Dashboard() {
 
   useEffect(() => {
     loadOverview();
-  }, [activeSearch, refreshKey]);
+  }, [activeSearch, refreshKey, user?.role]);
 
   return (
     <div className="bg-gray-50">
@@ -165,12 +194,14 @@ function Dashboard() {
       <div className="sticky top-12 z-40 bg-gray-50/50 backdrop-blur-sm border-b border-gray-200">
         <div className="flex h-12 items-center justify-between px-4">
           <div className="flex items-center gap-4">
-            <button
-              onClick={() => setIsEcoModalOpen(true)}
-              className="px-6 py-1.5 bg-white border border-gray-300 rounded text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 hover:border-emerald-500 active:scale-95 transition-all"
-            >
-              New
-            </button>
+            {!isOperations && (
+              <button
+                onClick={() => setIsEcoModalOpen(true)}
+                className="px-6 py-1.5 bg-white border border-gray-300 rounded text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 hover:border-emerald-500 active:scale-95 transition-all"
+              >
+                New
+              </button>
+            )}
           </div>
 
           <div className="flex-1 max-w-2xl px-8">
@@ -229,9 +260,13 @@ function Dashboard() {
         <div className="mb-8 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <h2 className="text-lg font-semibold text-gray-900">ECO Overview</h2>
+              <h2 className="text-lg font-semibold text-gray-900">
+                {isOperations ? 'Product Overview' : 'ECO Overview'}
+              </h2>
               <p className="text-xs text-gray-500">
-                Track ECOs alongside linked product metadata.
+                {isOperations
+                  ? 'Active products available for operations.'
+                  : 'Track ECOs alongside linked product metadata.'}
               </p>
             </div>
             <div className="text-xs font-semibold text-gray-500">
@@ -249,12 +284,14 @@ function Dashboard() {
         </div>
       </main>
 
-      <EcoCreateModal
-        isOpen={isEcoModalOpen}
-        onClose={() => setIsEcoModalOpen(false)}
-        currentUser={user}
-        onComplete={refreshEcos}
-      />
+      {!isOperations && (
+        <EcoCreateModal
+          isOpen={isEcoModalOpen}
+          onClose={() => setIsEcoModalOpen(false)}
+          currentUser={user}
+          onComplete={refreshEcos}
+        />
+      )}
       {startConfirmEco && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
           <div className="w-full max-w-md rounded-lg border border-gray-200 bg-white p-5 shadow-xl">

@@ -9,14 +9,41 @@ import { success } from '../../utils/response.js';
 
 export const listProductsController = asyncHandler(async (req, res) => {
   const { status } = req.query;
+  const role = req.user?.role;
+  const allStatuses = ['active', 'archived'];
 
-  if (status && status !== 'active') {
-    const error = new Error('Only active products are supported');
-    error.statusCode = 400;
+  const parseStatusQuery = (value) => {
+    if (!value || typeof value !== 'string') {
+      return null;
+    }
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) {
+      return null;
+    }
+    if (normalized === 'all') {
+      return { statuses: allStatuses, requestedAll: true };
+    }
+    const tokens = normalized
+      .split(',')
+      .map((token) => token.trim())
+      .filter(Boolean);
+    return { statuses: [...new Set(tokens)], requestedAll: false };
+  };
+
+  const parsed = parseStatusQuery(status);
+  let statuses = parsed?.statuses ?? ['active'];
+
+  if (parsed?.requestedAll && role !== 'admin') {
+    const error = new Error('Only admins can request all product statuses');
+    error.statusCode = 403;
     throw error;
   }
 
-  const products = await productsService.getActiveProducts();
+  if (role === 'operations') {
+    statuses = ['active'];
+  }
+
+  const products = await productsService.getProductsByStatus(statuses);
 
   success(res, { products }, 200);
 });

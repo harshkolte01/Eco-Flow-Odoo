@@ -654,6 +654,11 @@ export const startEco = async (ecoId) => {
 
 export const listEcos = async ({ q, ecoType, scope = 'all', currentUser }) => {
   const where = {};
+  const role = currentUser?.role;
+
+  if (role === 'operations') {
+    return [];
+  }
 
   if (q && q.trim()) {
     where.title = {
@@ -666,7 +671,12 @@ export const listEcos = async ({ q, ecoType, scope = 'all', currentUser }) => {
     where.ecoType = ecoType;
   }
 
-  if (scope === 'mine' && currentUser?.id) {
+  let effectiveScope = scope;
+  if (role === 'engineering') {
+    effectiveScope = 'mine';
+  }
+
+  if (effectiveScope === 'mine' && currentUser?.id) {
     where.raisedById = currentUser.id;
   }
 

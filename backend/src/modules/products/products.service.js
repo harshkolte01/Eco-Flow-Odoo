@@ -5,14 +5,17 @@ import { prisma } from '../../config/database.js';
  * Business logic for product lookup operations
  */
 
-export const getActiveProducts = async () => {
+export const getProductsByStatus = async (statuses = ['active']) => {
   const versions = await prisma.productVersion.findMany({
     where: {
-      status: 'active'
+      status: {
+        in: statuses
+      }
     },
     select: {
       productId: true,
       productName: true,
+      status: true,
       product: {
         select: {
           productCode: true
@@ -27,8 +30,11 @@ export const getActiveProducts = async () => {
   return versions.map((version) => ({
     productId: version.productId,
     productCode: version.product.productCode,
-    productName: version.productName
+    productName: version.productName,
+    status: version.status
   }));
 };
 
-export default { getActiveProducts };
+export const getActiveProducts = async () => getProductsByStatus(['active']);
+
+export default { getProductsByStatus, getActiveProducts };

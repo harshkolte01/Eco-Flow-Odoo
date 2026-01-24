@@ -7,7 +7,7 @@ export interface EcoListItem {
   kind?: 'eco' | 'product';
   title: string;
   ecoType?: 'product' | 'bom';
-  status: 'draft' | 'in_progress' | 'approved' | 'applied' | 'active';
+  status: 'draft' | 'in_progress' | 'approved' | 'applied' | 'active' | 'archived';
   effectiveDate?: string | null;
   versionUpdate: boolean;
   createdAt?: string | null;
@@ -33,14 +33,22 @@ interface EcoListPanelProps {
   onStartEco?: (ecoId: number) => void;
 }
 
-const statusOrder: EcoListItem['status'][] = ['draft', 'in_progress', 'approved', 'applied', 'active'];
+const statusOrder: EcoListItem['status'][] = [
+  'draft',
+  'in_progress',
+  'approved',
+  'applied',
+  'active',
+  'archived'
+];
 
 const statusLabels: Record<EcoListItem['status'], string> = {
   draft: 'Draft',
   in_progress: 'In Progress',
   approved: 'Approved',
   applied: 'Applied',
-  active: 'Active'
+  active: 'Active',
+  archived: 'Archived'
 };
 
 const statusClasses: Record<EcoListItem['status'], string> = {
@@ -48,7 +56,8 @@ const statusClasses: Record<EcoListItem['status'], string> = {
   in_progress: 'bg-amber-100 text-amber-700 border-amber-200',
   approved: 'bg-emerald-100 text-emerald-700 border-emerald-200',
   applied: 'bg-indigo-100 text-indigo-700 border-indigo-200',
-  active: 'bg-sky-100 text-sky-700 border-sky-200'
+  active: 'bg-sky-100 text-sky-700 border-sky-200',
+  archived: 'bg-gray-100 text-gray-600 border-gray-200'
 };
 
 const formatEcoType = (ecoType?: EcoListItem['ecoType']) => {
