@@ -64,7 +64,7 @@ export function ConditionBuilder({ conditions, onChange }: ConditionBuilderProps
     });
   };
 
-  const updateCondition = (index: number, field: keyof RuleCondition, value: any) => {
+  const updateCondition = (index: number, field: keyof RuleCondition, value: string | number | boolean | string[]) => {
     const newConditions = [...conditions];
     newConditions[index] = { ...newConditions[index], [field]: value };
 
@@ -106,7 +106,7 @@ export function ConditionBuilder({ conditions, onChange }: ConditionBuilderProps
 
   const getAvailableOperators = (fieldType: string) => {
     return Object.entries(OPERATORS)
-      .filter(([_, op]) => op.types.includes(fieldType))
+      .filter(([, op]) => op.types.includes(fieldType))
       .map(([value, op]) => ({ value, label: op.label }));
   };
 
@@ -133,7 +133,7 @@ export function ConditionBuilder({ conditions, onChange }: ConditionBuilderProps
         <div>
           <input
             type="text"
-            value={Array.isArray(condition.fieldValue) ? condition.fieldValue.join(', ') : (condition.fieldValue || '')}
+            value={Array.isArray(condition.fieldValue) ? condition.fieldValue.join(', ') : String(condition.fieldValue || '')}
             onChange={(e) => {
               const values = e.target.value.split(',').map((v) => v.trim()).filter(Boolean);
               updateCondition(index, 'fieldValue', values);
@@ -149,7 +149,7 @@ export function ConditionBuilder({ conditions, onChange }: ConditionBuilderProps
     return (
       <input
         type={fieldType === 'number' ? 'number' : 'text'}
-        value={Array.isArray(condition.fieldValue) ? condition.fieldValue[0] || '' : condition.fieldValue}
+        value={Array.isArray(condition.fieldValue) ? (condition.fieldValue[0] || '') : String(condition.fieldValue || '')}
         onChange={(e) => updateCondition(index, 'fieldValue', e.target.value)}
         placeholder={`Enter ${fieldType} value...`}
         className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
