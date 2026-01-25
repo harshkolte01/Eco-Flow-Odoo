@@ -54,11 +54,18 @@ class ApproversService {
 
     // Validate user exists
     const user = await prisma.user.findUnique({
-      where: { id: parseInt(userId) }
+      where: { id: parseInt(userId) },
+      include: {
+        role: { select: { name: true } }
+      }
     });
 
     if (!user) {
       throw new Error('User not found');
+    }
+
+    if (user.role?.name !== 'approver' && user.role?.name !== 'admin') {
+      throw new Error('Only approver or admin users can be assigned');
     }
 
     // Check if approver already exists

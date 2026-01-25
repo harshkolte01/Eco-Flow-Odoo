@@ -19,6 +19,27 @@ import {
 const BASE_PATH = '/api/approval-rules';
 const DELEGATIONS_PATH = '/api/delegations';
 
+const normalizeConditionValue = (value: RuleCondition['fieldValue']) => {
+  if (Array.isArray(value)) {
+    return value.join(', ');
+  }
+  if (typeof value === 'boolean') {
+    return value ? 'true' : 'false';
+  }
+  if (value === null || value === undefined) {
+    return '';
+  }
+  return String(value);
+};
+
+const normalizeCondition = (condition: RuleCondition): RuleCondition => ({
+  ...condition,
+  fieldValue: normalizeConditionValue(condition.fieldValue),
+});
+
+const normalizeConditions = (conditions?: RuleCondition[]) =>
+  conditions?.map(normalizeCondition);
+
 /**
  * Builds query string from filter options
  */
@@ -66,9 +87,13 @@ export const approvalRulesClient = {
    * Create a new approval rule
    */
   async createRule(rule: ApprovalRule) {
+    const payload = {
+      ...rule,
+      conditions: normalizeConditions(rule.conditions) || [],
+    };
     const response = await apiFetch<ApprovalRule>(BASE_PATH, {
       method: 'POST',
-      body: rule,
+      body: payload,
     });
     if (!response.success) {
       throw new ApiError(response.message || 'Failed to create rule', 500);
@@ -80,9 +105,13 @@ export const approvalRulesClient = {
    * Update an existing approval rule
    */
   async updateRule(ruleId: string, updates: Partial<ApprovalRule>) {
+    const payload = {
+      ...updates,
+      conditions: updates.conditions ? normalizeConditions(updates.conditions) : updates.conditions,
+    };
     const response = await apiFetch<ApprovalRule>(`${BASE_PATH}/${ruleId}`, {
       method: 'PATCH',
-      body: updates,
+      body: payload,
     });
     if (!response.success) {
       throw new ApiError(response.message || 'Failed to update rule', 500);
@@ -109,11 +138,12 @@ export const approvalRulesClient = {
    * Add a condition to a rule
    */
   async addCondition(ruleId: string, condition: RuleCondition) {
+    const payload = normalizeCondition(condition);
     const response = await apiFetch<RuleCondition>(
       `${BASE_PATH}/${ruleId}/conditions`,
       {
         method: 'POST',
-        body: condition,
+        body: payload,
       }
     );
     if (!response.success) {
@@ -130,11 +160,14 @@ export const approvalRulesClient = {
     conditionId: string,
     condition: Partial<RuleCondition>
   ) {
+    const payload = condition.fieldValue !== undefined
+      ? { ...condition, fieldValue: normalizeConditionValue(condition.fieldValue) }
+      : condition;
     const response = await apiFetch<RuleCondition>(
       `${BASE_PATH}/${ruleId}/conditions/${conditionId}`,
       {
         method: 'PATCH',
-        body: condition,
+        body: payload,
       }
     );
     if (!response.success) {

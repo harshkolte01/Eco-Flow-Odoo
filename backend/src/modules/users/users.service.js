@@ -131,7 +131,12 @@ export const getUserLookup = async () => {
       id: true,
       name: true,
       loginId: true,
-      email: true
+      email: true,
+      role: {
+        select: {
+          name: true
+        }
+      }
     },
     orderBy: { name: 'asc' }
   });

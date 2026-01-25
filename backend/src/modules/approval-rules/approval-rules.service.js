@@ -1,6 +1,113 @@
 import { prisma } from '../../config/database.js';
+import { RULE_FIELD_SET, RULE_LOGICAL_OPERATORS, RULE_OPERATOR_SET } from './rule-fields.js';
 
 export default class ApprovalRulesService {
+  normalizeFieldValue(value) {
+    if (Array.isArray(value)) {
+      return value.join(', ');
+    }
+    if (typeof value === 'boolean') {
+      return value ? 'true' : 'false';
+    }
+    if (value === null || value === undefined) {
+      return '';
+    }
+    return String(value);
+  }
+
+  normalizeConditions(conditions = []) {
+    return conditions.map((condition) => ({
+      ...condition,
+      fieldValue: this.normalizeFieldValue(condition.fieldValue),
+      logicalOperator: condition.logicalOperator ?? undefined
+    }));
+  }
+
+  isEmptyConditionValue(value) {
+    if (value === null || value === undefined) {
+      return true;
+    }
+    if (typeof value === 'string') {
+      return value.trim().length === 0;
+    }
+    if (Array.isArray(value)) {
+      return value.length === 0;
+    }
+    return false;
+  }
+
+  validateConditions(conditions = []) {
+    for (const condition of conditions) {
+      if (!RULE_FIELD_SET.has(condition.fieldName)) {
+        throw new Error(`Unsupported condition field: ${condition.fieldName}`);
+      }
+      if (!RULE_OPERATOR_SET.has(condition.operator)) {
+        throw new Error(`Unsupported condition operator: ${condition.operator}`);
+      }
+      if (condition.logicalOperator && !RULE_LOGICAL_OPERATORS.has(condition.logicalOperator)) {
+        throw new Error(`Unsupported logical operator: ${condition.logicalOperator}`);
+      }
+      if (this.isEmptyConditionValue(condition.fieldValue)) {
+        throw new Error('Condition fieldValue is required');
+      }
+    }
+  }
+
+  async validateStageIds(stageIds = []) {
+    const normalizedStageIds = Array.from(
+      new Set(
+        stageIds
+          .map((id) => parseInt(id, 10))
+          .filter((id) => Number.isFinite(id))
+      )
+    );
+
+    if (normalizedStageIds.length === 0) {
+      throw new Error('At least one valid stageId is required');
+    }
+
+    const stages = await prisma.ecoStage.findMany({
+      where: { id: { in: normalizedStageIds } },
+      select: { id: true, approvalRequired: true }
+    });
+
+    if (stages.length !== normalizedStageIds.length) {
+      throw new Error('One or more stageIds are invalid');
+    }
+
+    const invalidStages = stages.filter((stage) => !stage.approvalRequired);
+    if (invalidStages.length > 0) {
+      throw new Error('Approval rules can only target stages that require approval');
+    }
+
+    return normalizedStageIds;
+  }
+
+  async validateApproverUsers(approvers = []) {
+    if (!approvers || approvers.length === 0) {
+      return;
+    }
+
+    const approverIds = Array.from(new Set(approvers.map((approver) => approver.userId).filter(Boolean)));
+
+    const users = await prisma.user.findMany({
+      where: { id: { in: approverIds } },
+      select: { id: true, role: { select: { name: true } } }
+    });
+
+    if (users.length !== approverIds.length) {
+      throw new Error('One or more approver users were not found');
+    }
+
+    const invalidUsers = users.filter(
+      (user) => user.role?.name !== 'approver' && user.role?.name !== 'admin'
+    );
+
+    if (invalidUsers.length > 0) {
+      throw new Error('Approvers must have approver or admin roles');
+    }
+  }
+
   /**
    * CREATE: Create a new approval rule
    */
@@ -8,16 +115,21 @@ export default class ApprovalRulesService {
     const { name, description, ruleType, priority, stageIds, conditions, approvers } = input;
 
     try {
+      this.validateConditions(conditions || []);
+      const normalizedStageIds = await this.validateStageIds(stageIds || []);
+      await this.validateApproverUsers(approvers || []);
+      const normalizedConditions = this.normalizeConditions(conditions || []);
+
       const rule = await prisma.approvalRule.create({
         data: {
           name,
           description,
           ruleType,
           priority,
-          stageIds,
+          stageIds: normalizedStageIds,
           createdById,
           conditions: {
-            create: conditions || []
+            create: normalizedConditions
           },
           approvers: {
             create: approvers || []
@@ -135,6 +247,7 @@ export default class ApprovalRulesService {
 
     try {
       const oldRule = await this.getRule(ruleId);
+      const normalizedStageIds = stageIds ? await this.validateStageIds(stageIds) : undefined;
 
       const updatedRule = await prisma.approvalRule.update({
         where: { id: ruleId },
@@ -143,7 +256,7 @@ export default class ApprovalRulesService {
           description,
           ruleType,
           priority,
-          stageIds,
+          stageIds: normalizedStageIds ?? oldRule.stageIds,
           isActive,
           updatedById,
           version: { increment: 1 }
@@ -200,10 +313,13 @@ export default class ApprovalRulesService {
    */
   async addCondition(ruleId, conditionData, userId) {
     try {
+      this.validateConditions([conditionData]);
+      const normalizedCondition = this.normalizeConditions([conditionData])[0];
+
       const condition = await prisma.ruleCondition.create({
         data: {
           ruleId,
-          ...conditionData
+          ...normalizedCondition
         }
       });
 
@@ -230,9 +346,21 @@ export default class ApprovalRulesService {
         where: { id: conditionId }
       });
 
+      if (!oldCondition) {
+        throw new Error('Condition not found');
+      }
+
+      const mergedCondition = {
+        ...oldCondition,
+        ...conditionData
+      };
+
+      this.validateConditions([mergedCondition]);
+      const normalizedCondition = this.normalizeConditions([mergedCondition])[0];
+
       const updatedCondition = await prisma.ruleCondition.update({
         where: { id: conditionId },
-        data: conditionData
+        data: normalizedCondition
       });
 
       await this.createAuditLog(
@@ -282,6 +410,7 @@ export default class ApprovalRulesService {
   async addApprover(ruleId, approverData, userId) {
     try {
       const { userId: approverId, approvalCategory, canDelegate, escalationUserId, escalationThresholdDays } = approverData;
+      await this.validateApproverUsers([{ userId: approverId }]);
 
       const approver = await prisma.ruleApprover.create({
         data: {
@@ -439,4 +568,3 @@ export default class ApprovalRulesService {
     }
   }
 }
-

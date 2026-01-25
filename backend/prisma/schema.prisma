@@ -111,6 +111,7 @@ model User {
   approvals    EcoApproval[]
   auditLogs    AuditLog[]
   stageApprovers StageApprover[]
+  ecoApproverAssignments EcoApproverAssignment[]
   
   // Rule management
   createdRules          ApprovalRule[]     @relation("RuleCreator")
@@ -127,6 +128,10 @@ model User {
   
   // Rule audits
   ruleAudits            RuleAudit[]        @relation("RuleAudits")
+  
+  // Password reset
+  passwordResetTokens   PasswordResetToken[]
+  lastPasswordChangeAt  DateTime?
 }
 
 model Product {
@@ -229,6 +234,7 @@ model EcoStage {
   ecos             Eco[]
   approvals        EcoApproval[]
   stageApprovers   StageApprover[]
+  approverAssignments EcoApproverAssignment[]
 }
 
 model Eco {
@@ -249,6 +255,7 @@ model Eco {
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @updatedAt
   approvals      EcoApproval[]
+  approverAssignments EcoApproverAssignment[]
   productChange  EcoProductChange?
   bomDraft       EcoBomDraft?
   createdProductVersions ProductVersion[] @relation("ProductVersionCreatedFromEco")
@@ -277,6 +284,25 @@ model EcoApproval {
 
   @@index([ecoId, stageId])
   @@index([approverId])
+}
+
+model EcoApproverAssignment {
+  id               Int              @id @default(autoincrement())
+  ecoId            Int
+  eco              Eco              @relation(fields: [ecoId], references: [id])
+  stageId          Int
+  stage            EcoStage         @relation(fields: [stageId], references: [id])
+  userId           Int
+  user             User             @relation(fields: [userId], references: [id])
+  approvalCategory ApprovalCategory @default(required)
+  ruleId           String?
+  source           String           @default("rule")
+  createdAt        DateTime         @default(now())
+
+  @@unique([ecoId, stageId, userId])
+  @@index([ecoId, stageId])
+  @@index([stageId])
+  @@index([userId])
 }
 
 model EcoProductChange {
@@ -503,4 +529,23 @@ model RuleEvaluationLog {
   
   @@index([ecoId])
   @@index([ruleId])
+}
+
+// ========== PASSWORD RESET SYSTEM ==========
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    Int
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Token stored as bcrypt hash (not plaintext)
+  token     String    @unique
+  
+  // Security fields
+  expiresAt DateTime
+  usedAt    DateTime?  // NULL = unused, SET = used once
+  createdAt DateTime   @default(now())
+  
+  @@index([userId])
+  @@index([expiresAt])
 }

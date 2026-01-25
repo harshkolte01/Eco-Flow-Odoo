@@ -121,7 +121,7 @@ export const updateStage = async (stageId, payload) => {
 };
 
 export const deleteStage = async (stageId) => {
-  const [stage, totalStages, ecoCount, approvalCount] = await prisma.$transaction([
+  const [stage, totalStages, ecoCount, approvalCount, ruleCount] = await prisma.$transaction([
     prisma.ecoStage.findUnique({
       where: { id: stageId }
     }),
@@ -131,6 +131,12 @@ export const deleteStage = async (stageId) => {
     }),
     prisma.ecoApproval.count({
       where: { stageId }
+    }),
+    prisma.approvalRule.count({
+      where: {
+        isArchived: false,
+        stageIds: { has: stageId }
+      }
     })
   ]);
 
@@ -144,6 +150,12 @@ export const deleteStage = async (stageId) => {
 
   if (ecoCount > 0 || approvalCount > 0) {
     const error = new Error('Stage cannot be removed while linked to ECOs or approvals');
+    error.statusCode = 409;
+    throw error;
+  }
+
+  if (ruleCount > 0) {
+    const error = new Error('Stage cannot be removed while linked to approval rules');
     error.statusCode = 409;
     throw error;
   }

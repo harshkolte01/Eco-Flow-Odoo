@@ -155,7 +155,7 @@ function EcoStagesContent() {
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
       {/* Header */}
       <div className="mb-8">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">ECO Stages</h1>
             <p className="mt-1 text-sm text-gray-500">
@@ -164,7 +164,7 @@ function EcoStagesContent() {
           </div>
           <button
             onClick={() => setIsCreateModalOpen(true)}
-            className="flex items-center gap-2 rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700"
+            className="flex w-full sm:w-auto items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700"
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -203,7 +203,82 @@ function EcoStagesContent() {
       {/* Stages List */}
       {!loading && !error && (
         <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-          <table className="min-w-full divide-y divide-gray-200">
+          {/* Mobile View - Cards */}
+          <div className="md:hidden">
+            <ul className="divide-y divide-gray-200">
+              {stages.map((stage) => (
+                <li key={stage.id} className="p-4 hover:bg-gray-50 transition-colors">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-sm font-semibold text-emerald-700">
+                        {stage.sequenceOrder}
+                      </span>
+                      <div className="text-sm font-medium text-gray-900">{stage.name}</div>
+                    </div>
+                    {stage.approvalRequired ? (
+                      <span className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800">
+                        <svg className="mr-1 h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                        Approval
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700">
+                        Validation
+                      </span>
+                    )}
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4 mb-4 bg-gray-50 p-3 rounded-md">
+                    <div>
+                      <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">Approvers</span>
+                      <div className="mt-1 flex items-center gap-2">
+                        <span className="text-sm font-bold text-gray-900">{stage.approverCount || 0}</span>
+                        {stage.approverCount && stage.approverCount > 0 ? (
+                          <svg className="h-4 w-4 text-emerald-500" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
+                          </svg>
+                        ) : (
+                          <svg className="h-4 w-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
+                          </svg>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">ECOs</span>
+                      <div className="mt-1 text-sm font-bold text-gray-900">{stage.ecoCount || 0}</div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-4">
+                    <button
+                      onClick={() => handleViewStage(stage.id)}
+                      className="text-sm font-medium text-emerald-600 hover:text-emerald-800"
+                    >
+                      Configure
+                    </button>
+                    <button
+                      onClick={() => handleEditStage(stage)}
+                      className="text-sm font-medium text-blue-600 hover:text-blue-800"
+                    >
+                      Edit
+                    </button>
+                    {stage.ecoCount === 0 && (
+                      <button
+                        onClick={() => setDeleteStageId(stage.id)}
+                        className="text-sm font-medium text-red-600 hover:text-red-800"
+                      >
+                        Delete
+                      </button>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <table className="min-w-full divide-y divide-gray-200 hidden md:table">
             <thead className="bg-gray-50">
               <tr>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">

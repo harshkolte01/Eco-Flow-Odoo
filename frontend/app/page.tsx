@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState, useCallback } from 'react';
 import { EcoCreateModal } from '@/components/EcoCreateModal';
 import { apiFetch, ApiError } from '@/lib/api';
 import { EcoListPanel, EcoListItem } from '@/components/EcoListPanel';
+
 export default function Home() {
   return (
     <ProtectedRoute>
@@ -80,7 +81,7 @@ function Dashboard() {
       const ecoQueryString = params.toString();
       const ecoPath = ecoQueryString ? `/api/ecos?${ecoQueryString}` : '/api/ecos';
 
-      const productStatus = isAdmin ? 'all' : isOperations ? 'active' : 'active,archived';
+      const productStatus = isAdmin ? 'all' : isOperations ? 'active' : 'all'; // Fetch all statuses (active, archived, draft) for engineering/admin to populate Kanban
       const productParams = new URLSearchParams();
       if (productStatus) {
         productParams.set('status', productStatus);
@@ -96,6 +97,7 @@ function Dashboard() {
           : apiFetch<{ ecos: EcoListItem[] }>(ecoPath),
         apiFetch<{
           products: {
+            id: number;
             productId: number;
             productCode: string;
             productName: string;
@@ -122,7 +124,7 @@ function Dashboard() {
             return haystack.includes(searchValue);
           })
           .map((product) => ({
-            id: product.productId,
+            id: product.id,
             kind: 'product' as const,
             title: product.productName || product.productCode,
             ecoType: undefined,
@@ -164,53 +166,41 @@ function Dashboard() {
   }, [ecoItems, isEngineering, isOperations]);
 
   return (
-    <div className="bg-gray-50 min-h-full">
+    <div className="bg-white min-h-full">
       {/* Sub Header */}
-      <div className="sticky top-0 z-40 border-b border-gray-200 bg-white/95 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:gap-4 sm:px-6 sm:py-2 lg:px-8">
-          {/* Left side: Action Button */}
-          {canCreateEco && (
-            <div className="flex items-center">
-              <button
-                onClick={() => setIsEcoModalOpen(true)}
-                className="flex items-center gap-2 rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700"
-              >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+      <div className="sticky top-0 z-40 border-b border-gray-100 bg-white/80 backdrop-blur-md">
+        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
+          {/* Search bar - Now on the left/main focus */}
+          <form onSubmit={handleSearch} className="relative w-full sm:max-w-md">
+            <div className="group relative">
+              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
+                <svg className="h-5 w-5 text-gray-400 group-focus-within:text-emerald-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
-                New ECO
-              </button>
-            </div>
-          )}
-
-          {/* Middle: Search bar */}
-          <form onSubmit={handleSearch} className="relative flex-1 min-w-0 sm:max-w-2xl">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search ECOs, products, or codes..."
-              aria-label="Search ECOs, products, or codes"
-              className="h-9 w-full rounded-md border border-gray-300 bg-white pl-10 pr-4 text-sm text-gray-900 placeholder-gray-400 transition-all focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-            />
-            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-              <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
+              </div>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search ECOs, products..."
+                aria-label="Search ECOs, products"
+                className="h-11 w-full rounded-xl border-0 bg-gray-100/50 pl-11 pr-4 text-sm text-gray-900 placeholder-gray-500 ring-1 ring-transparent transition-all focus:bg-white focus:ring-emerald-500/20 focus:shadow-sm sm:text-sm"
+              />
             </div>
           </form>
 
-          {/* Right side: View Toggles */}
-          <div className="flex w-full items-center justify-start gap-2 sm:w-auto sm:justify-end sm:ml-auto">
-            <div className="flex items-center gap-1 rounded-md border border-gray-300 bg-white p-1">
+          {/* Right side: Actions & View Toggles */}
+          <div className="flex items-center justify-between gap-3 sm:justify-end">
+            {/* View Toggles */}
+            <div className="flex items-center gap-1 rounded-xl bg-gray-100/80 p-1">
               <button
                 type="button"
                 onClick={() => setViewMode('list')}
                 aria-pressed={viewMode === 'list'}
-                className={`rounded p-1.5 transition-colors ${
+                className={`rounded-lg p-2 transition-all ${
                   viewMode === 'list'
-                    ? 'bg-emerald-50 text-emerald-600'
-                    : 'text-gray-600 hover:bg-emerald-50 hover:text-emerald-600'
+                    ? 'bg-white text-emerald-600 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'
                 }`}
                 title="List View"
               >
@@ -222,10 +212,10 @@ function Dashboard() {
                 type="button"
                 onClick={() => setViewMode('kanban')}
                 aria-pressed={viewMode === 'kanban'}
-                className={`rounded p-1.5 transition-colors ${
+                className={`rounded-lg p-2 transition-all ${
                   viewMode === 'kanban'
-                    ? 'bg-emerald-50 text-emerald-600'
-                    : 'text-gray-600 hover:bg-emerald-50 hover:text-emerald-600'
+                    ? 'bg-white text-emerald-600 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'
                 }`}
                 title="Kanban View"
               >
@@ -234,19 +224,34 @@ function Dashboard() {
                 </svg>
               </button>
             </div>
+
+            {/* Action Button */}
+            {canCreateEco && (
+              <button
+                onClick={() => setIsEcoModalOpen(true)}
+                className="flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 hover:shadow-md hover:shadow-emerald-600/20 transition-all active:scale-95"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+                </svg>
+                <span className="hidden sm:inline">New ECO</span>
+                <span className="sm:hidden">New</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
 
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         {pendingApprovals.length > 0 && (
-          <div className="mb-12">
-            <div className="mb-4">
-              <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                <span className="flex h-2 w-2 rounded-full bg-rose-500"></span>
+          <div className="mb-10">
+            <div className="mb-4 flex items-center gap-2">
+              <h2 className="text-lg font-semibold text-gray-900">
                 Pending Approvals
               </h2>
-              <p className="text-sm text-gray-500 mt-1">Items requiring your immediate review and sign-off.</p>
+              <span className="flex h-5 items-center justify-center rounded-full bg-red-100 px-2 text-xs font-medium text-red-700">
+                {pendingApprovals.length}
+              </span>
             </div>
             <EcoListPanel
               viewMode="list"
@@ -261,19 +266,12 @@ function Dashboard() {
         )}
 
         <div className="mb-8">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">
-                {isOperations ? 'Product Overview' : 'ECO Overview'}
-              </h2>
-              <p className="text-sm text-gray-500 mt-1">
-                {isOperations
-                  ? 'Active products available for operations.'
-                  : 'Track ECOs alongside linked product metadata.'}
-              </p>
-            </div>
-            <div className="text-sm font-medium text-gray-500">
-              {overviewItems.length} items
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-gray-900">
+              {isOperations ? 'Product Overview' : 'All Items'}
+            </h2>
+            <div className="text-sm text-gray-500">
+              {overviewItems.length} results
             </div>
           </div>
           <EcoListPanel

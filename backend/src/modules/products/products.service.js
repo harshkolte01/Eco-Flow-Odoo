@@ -38,6 +38,7 @@ export const getProductsByStatus = async (statuses = ['active']) => {
       }
     },
     select: {
+      id: true,
       productId: true,
       productName: true,
       status: true,
@@ -54,19 +55,15 @@ export const getProductsByStatus = async (statuses = ['active']) => {
     }
   });
 
-  const uniqueByProduct = new Map();
-  versions.forEach((version) => {
-    const existing = uniqueByProduct.get(version.productId);
-    uniqueByProduct.set(version.productId, pickBestVersion(existing, version));
-  });
-
-  return Array.from(uniqueByProduct.values())
+  return versions
     .sort((a, b) => a.product.productCode.localeCompare(b.product.productCode))
     .map((version) => ({
+      id: version.id,
       productId: version.productId,
       productCode: version.product.productCode,
       productName: version.productName,
       status: version.status,
+      versionNo: version.versionNo,
       updatedAt: version.updatedAt
     }));
 };

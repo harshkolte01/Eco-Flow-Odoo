@@ -53,4 +53,73 @@ export const loginSchema = {
   }
 };
 
-export default { signupSchema, loginSchema };
+export const changePasswordSchema = {
+  oldPassword: {
+    required: true,
+    minLength: 8
+  },
+  newPassword: {
+    required: true,
+    minLength: 8,
+    validator: (value) => {
+      if (!/[A-Za-z]/.test(value) || !/[0-9]/.test(value)) {
+        return 'Password must contain at least one letter and one number';
+      }
+      return null;
+    }
+  },
+  confirmPassword: {
+    required: true,
+    validator: (value, data) => {
+      if (value !== data.newPassword) {
+        return 'Passwords do not match';
+      }
+      return null;
+    }
+  }
+};
+
+export const forgotPasswordSchema = {
+  email: {
+    required: true,
+    type: 'email'
+  }
+};
+
+export const resetPasswordSchema = {
+  email: {
+    required: true,
+    type: 'email'
+  },
+  token: {
+    required: true,
+    minLength: 1
+  },
+  newPassword: {
+    required: true,
+    minLength: 8,
+    validator: (value) => {
+      if (!/[A-Za-z]/.test(value) || !/[0-9]/.test(value)) {
+        return 'Password must contain at least one letter and one number';
+      }
+      return null;
+    }
+  },
+  confirmPassword: {
+    required: true,
+    validator: (value, data) => {
+      if (value !== data.newPassword) {
+        return 'Passwords do not match';
+      }
+      return null;
+    }
+  }
+};
+
+export default { 
+  signupSchema, 
+  loginSchema, 
+  changePasswordSchema, 
+  forgotPasswordSchema, 
+  resetPasswordSchema 
+};

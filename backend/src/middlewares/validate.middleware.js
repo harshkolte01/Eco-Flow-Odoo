@@ -69,9 +69,9 @@ const validateField = (field, value, rules) => {
     errors.push(`${field} must be one of: ${rules.enum.join(', ')}`);
   }
 
-  // Custom validator
+  // Custom validator - pass full data object for cross-field validation
   if (rules.validator && typeof rules.validator === 'function') {
-    const customError = rules.validator(value);
+    const customError = rules.validator(value, rules.data);
     if (customError) {
       errors.push(customError);
     }
@@ -101,7 +101,9 @@ export const validate = (schema, source = 'body') => {
     // Validate each field in schema
     for (const [field, rules] of Object.entries(schema)) {
       const value = data[field];
-      const fieldErrors = validateField(field, value, rules);
+      // Pass the full data object to rules for cross-field validation
+      const rulesWithData = { ...rules, data };
+      const fieldErrors = validateField(field, value, rulesWithData);
       errors.push(...fieldErrors);
     }
 

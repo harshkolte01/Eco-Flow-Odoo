@@ -2,6 +2,14 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../../config/database.js';
 import { config } from '../../config/env.js';
+import { validatePassword } from '../../utils/passwordValidator.js';
+import { 
+  generateResetToken, 
+  hashToken, 
+  verifyToken, 
+  getTokenExpiry 
+} from '../../utils/tokenGenerator.js';
+import emailService from '../../utils/emailService.js';
 
 /**
  * Auth Service
@@ -164,4 +172,207 @@ export const getCurrentUser = async (userId) => {
   return formatUserResponse(user);
 };
 
-export default { signup, login, getCurrentUser };
+/**
+ * Change password for authenticated user
+ * Requires verification of old password
+ * @param {Number} userId - User ID from JWT
+ * @param {String} oldPassword - Current password
+ * @param {String} newPassword - New password
+ * @returns {Object} Success message
+ */
+export const changePassword = async (userId, oldPassword, newPassword) => {
+  // Validate new password
+  const validation = validatePassword(newPassword);
+  if (!validation.isValid) {
+    const error = new Error('Password does not meet requirements');
+    error.statusCode = 400;
+    error.details = validation.errors;
+    throw error;
+  }
+  
+  // Find user
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) {
+    const error = new Error('User not found');
+    error.statusCode = 404;
+    throw error;
+  }
+  
+  // Verify old password
+  const isOldPasswordValid = await bcrypt.compare(oldPassword, user.passwordHash);
+  if (!isOldPasswordValid) {
+    const error = new Error('Current password is incorrect');
+    error.statusCode = 401;
+    throw error;
+  }
+  
+  // Prevent using same password
+  const isSamePassword = await bcrypt.compare(newPassword, user.passwordHash);
+  if (isSamePassword) {
+    const error = new Error('New password cannot be the same as current password');
+    error.statusCode = 400;
+    throw error;
+  }
+  
+  // Hash new password
+  const newPasswordHash = await bcrypt.hash(newPassword, 10);
+  
+  // Update user
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      passwordHash: newPasswordHash,
+      lastPasswordChangeAt: new Date()
+    }
+  });
+  
+  return { success: true, message: 'Password changed successfully' };
+};
+
+/**
+ * Request password reset
+ * Generates reset token and sends it via email
+ * @param {String} email - User email address
+ * @returns {Object} Success message
+ */
+export const requestPasswordReset = async (email) => {
+  // Find user by email
+  const user = await prisma.user.findUnique({ where: { email } });
+  
+  // Don't reveal if email exists (security best practice)
+  if (!user) {
+    return { 
+      success: true, 
+      message: 'If your email is registered, you will receive a password reset link shortly'
+    };
+  }
+  
+  // Invalidate previous unused tokens
+  await prisma.passwordResetToken.deleteMany({
+    where: { 
+      userId: user.id, 
+      usedAt: null 
+    }
+  });
+  
+  // Generate new token
+  const resetToken = generateResetToken();
+  const tokenHash = hashToken(resetToken);
+  const expiresAt = getTokenExpiry(1); // 1 hour expiry
+  
+  // Store token in database
+  await prisma.passwordResetToken.create({
+    data: {
+      userId: user.id,
+      token: tokenHash,
+      expiresAt
+    }
+  });
+  
+  // Check if email service is available
+  if (emailService.isAvailable()) {
+    // Production: Send email with reset link and token
+    const emailSent = await emailService.sendPasswordResetEmail(
+      user.email, 
+      resetToken, 
+      user.name
+    );
+    
+    if (emailSent) {
+      return {
+        success: true,
+        message: 'Password reset instructions have been sent to your email'
+      };
+    } else {
+      // Email failed but don't expose this to user
+      console.error('Failed to send password reset email to:', user.email);
+      return {
+        success: true,
+        message: 'If your email is registered, you will receive a password reset link shortly'
+      };
+    }
+  } else {
+    // MVP/Fallback: Return token directly when email is not configured
+    console.warn('⚠️  Email service not available. Returning token directly (MVP mode).');
+    return {
+      success: true,
+      message: 'If email exists, reset instructions have been sent',
+      resetToken, // For MVP - only when email service unavailable
+      email: user.email // For MVP - only when email service unavailable
+    };
+  }
+};
+
+/**
+ * Reset password using token
+ * @param {String} email - User email address
+ * @param {String} resetToken - Reset token from email
+ * @param {String} newPassword - New password
+ * @returns {Object} Success message
+ */
+export const resetPassword = async (email, resetToken, newPassword) => {
+  // Validate new password
+  const validation = validatePassword(newPassword);
+  if (!validation.isValid) {
+    const error = new Error('Password does not meet requirements');
+    error.statusCode = 400;
+    error.details = validation.errors;
+    throw error;
+  }
+  
+  // Find user
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (!user) {
+    const error = new Error('Invalid reset token');
+    error.statusCode = 400;
+    throw error;
+  }
+  
+  // Find valid reset token
+  const tokenRecord = await prisma.passwordResetToken.findFirst({
+    where: {
+      userId: user.id,
+      expiresAt: { gt: new Date() }, // Not expired
+      usedAt: null // Not already used
+    },
+    orderBy: {
+      createdAt: 'desc' // Get most recent
+    }
+  });
+  
+  if (!tokenRecord) {
+    const error = new Error('Invalid or expired reset token');
+    error.statusCode = 400;
+    throw error;
+  }
+  
+  // Verify token
+  const isTokenValid = verifyToken(resetToken, tokenRecord.token);
+  if (!isTokenValid) {
+    const error = new Error('Invalid reset token');
+    error.statusCode = 400;
+    throw error;
+  }
+  
+  // Hash new password
+  const newPasswordHash = await bcrypt.hash(newPassword, 10);
+  
+  // Update password and mark token as used (transaction)
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash: newPasswordHash,
+        lastPasswordChangeAt: new Date()
+      }
+    }),
+    prisma.passwordResetToken.update({
+      where: { id: tokenRecord.id },
+      data: { usedAt: new Date() }
+    })
+  ]);
+  
+  return { success: true, message: 'Password reset successfully' };
+};
+
+export default { signup, login, getCurrentUser, changePassword, requestPasswordReset, resetPassword };

@@ -34,6 +34,9 @@ interface User {
   name: string;
   email: string;
   loginId: string;
+  role?: {
+    name: string;
+  };
 }
 
 export default function StageDetailPage() {
@@ -132,8 +135,15 @@ function StageDetailContent() {
     }
   };
 
+  const eligibleUsers = availableUsers.filter((user) => {
+    if (!user.role?.name) {
+      return true;
+    }
+    return user.role.name === 'approver' || user.role.name === 'admin';
+  });
+
   const assignedUserIds = new Set(approvers.map(a => a.userId));
-  const unassignedUsers = availableUsers.filter(u => !assignedUserIds.has(u.id));
+  const unassignedUsers = eligibleUsers.filter(u => !assignedUserIds.has(u.id));
 
   const requiredApprovers = approvers.filter(a => a.approvalCategory === 'required');
   const optionalApprovers = approvers.filter(a => a.approvalCategory === 'optional');

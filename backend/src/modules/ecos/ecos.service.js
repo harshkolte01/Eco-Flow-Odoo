@@ -1,5 +1,6 @@
 import { prisma } from '../../config/database.js';
 import approversService from '../stages/approvers.service.js';
+import * as ruleIntegrationHelper from '../approval-rules/rule-integration.helper.js';
 
 /**
  * ECO Service
@@ -850,6 +851,15 @@ export const startEco = async (ecoId, currentUser) => {
   const results = await prisma.$transaction(operations);
   const updatedEco = results[results.length - 1];
 
+  // Evaluate approval rules for the new stage and assign approvers
+  // This is non-blocking - if it fails, static approvers still work
+  try {
+    await ruleIntegrationHelper.assignApproversFromRules(ecoId);
+  } catch (error) {
+    console.error('Failed to evaluate approval rules for ECO:', error);
+    // Continue - static approvers will be used
+  }
+
   return formatEcoDetail(updatedEco);
 };
 
@@ -1497,29 +1507,54 @@ export const approveEco = async (ecoId, currentUser) => {
     throw error;
   }
 
-  // Record this user's approval
-  await prisma.ecoApproval.create({
-    data: {
+  const existingApproval = await prisma.ecoApproval.findFirst({
+    where: {
       ecoId: eco.id,
       stageId: eco.currentStageId,
-      approverId: currentUser.id,
-      status: 'approved',
-      actionDate: new Date()
+      approverId: currentUser.id
     }
   });
 
-  await prisma.auditLog.create({
-    data: {
-      entityType: 'eco',
-      entityId: String(ecoId),
-      action: 'approved_by_user',
-      performedById: currentUser.id,
-      newValue: { stageId: eco.currentStageId, approverId: currentUser.id }
-    }
-  });
+  let approvalRecorded = false;
 
-  // Check if all required approvals are met
-  const approvalCheck = await approversService.canProceedToNextStage(ecoId, eco.currentStageId);
+  if (existingApproval) {
+    if (existingApproval.status !== 'approved') {
+      await prisma.ecoApproval.update({
+        where: { id: existingApproval.id },
+        data: {
+          status: 'approved',
+          actionDate: new Date()
+        }
+      });
+      approvalRecorded = true;
+    }
+  } else {
+    await prisma.ecoApproval.create({
+      data: {
+        ecoId: eco.id,
+        stageId: eco.currentStageId,
+        approverId: currentUser.id,
+        status: 'approved',
+        actionDate: new Date()
+      }
+    });
+    approvalRecorded = true;
+  }
+
+  if (approvalRecorded) {
+    await prisma.auditLog.create({
+      data: {
+        entityType: 'eco',
+        entityId: String(ecoId),
+        action: 'approved_by_user',
+        performedById: currentUser.id,
+        newValue: { stageId: eco.currentStageId, approverId: currentUser.id }
+      }
+    });
+  }
+
+  // Check if all required approvals are met (both static and rule-based)
+  const approvalCheck = await ruleIntegrationHelper.canProceedWithApprovals(ecoId, eco.currentStageId);
 
   // If can't proceed yet, return current state
   if (!approvalCheck.canProceed) {
@@ -1563,6 +1598,16 @@ export const approveEco = async (ecoId, currentUser) => {
 
     return ecoUpdate.id;
   });
+
+  // If not final stage, evaluate rules for the new stage
+  if (!nextStageIsFinal) {
+    try {
+      await ruleIntegrationHelper.assignApproversFromRules(ecoId);
+    } catch (error) {
+      console.error('Failed to evaluate approval rules after stage transition:', error);
+      // Continue - static approvers will be used
+    }
+  }
 
   if (nextStageIsFinal) {
     try {
@@ -1632,6 +1677,16 @@ export const validateEco = async (ecoId, currentUser) => {
       newValue: { stageId: nextStage.id }
     }
   });
+
+  // If not final stage, evaluate rules for the new stage
+  if (!nextStageIsFinal) {
+    try {
+      await ruleIntegrationHelper.assignApproversFromRules(ecoId);
+    } catch (error) {
+      console.error('Failed to evaluate approval rules after validation:', error);
+      // Continue - static approvers will be used
+    }
+  }
 
   if (nextStageIsFinal) {
     try {

@@ -41,4 +41,48 @@ export const meController = asyncHandler(async (req, res) => {
   success(res, { user }, 200);
 });
 
-export default { signupController, loginController, meController };
+/**
+ * POST /auth/change-password
+ * Change password for authenticated user
+ */
+export const changePasswordController = asyncHandler(async (req, res) => {
+  const { oldPassword, newPassword } = req.body;
+  const userId = req.user.id;
+
+  const result = await authService.changePassword(userId, oldPassword, newPassword);
+
+  success(res, result, 200);
+});
+
+/**
+ * POST /auth/forgot-password
+ * Request password reset token
+ */
+export const forgotPasswordController = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+
+  const result = await authService.requestPasswordReset(email);
+
+  success(res, result, 200);
+});
+
+/**
+ * POST /auth/reset-password
+ * Reset password using token
+ */
+export const resetPasswordController = asyncHandler(async (req, res) => {
+  const { email, token, newPassword } = req.body;
+
+  const result = await authService.resetPassword(email, token, newPassword);
+
+  success(res, result, 200);
+});
+
+export default { 
+  signupController, 
+  loginController, 
+  meController,
+  changePasswordController,
+  forgotPasswordController,
+  resetPasswordController
+};

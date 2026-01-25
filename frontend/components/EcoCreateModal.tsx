@@ -107,7 +107,7 @@ const createLocalId = () => {
 };
 
 const Skeleton = ({ className }: { className?: string }) => (
-  <div className={`animate-pulse rounded bg-gray-200 ${className}`} />
+  <div className={`animate-pulse rounded-lg bg-gray-200 ${className}`} />
 );
 
 export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initialEcoId }: EcoCreateModalProps) {
@@ -924,17 +924,26 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initi
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 p-4 sm:p-6">
-      <div className="flex w-full max-w-4xl max-h-[90vh] flex-col overflow-hidden rounded-xl bg-white shadow-xl border border-gray-200">
-        <div className="flex flex-col gap-4 border-b border-gray-200 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 p-4 backdrop-blur-sm transition-opacity">
+      <div className="flex w-full max-w-4xl max-h-[90vh] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-gray-900/5">
+        <div className="flex flex-col gap-6 border-b border-gray-100 px-8 py-6 sm:flex-row sm:items-start sm:justify-between bg-white">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-widest text-emerald-600">
-              Engineering Change Order
+            <div className="flex items-center gap-2 mb-2">
+              <span className="inline-flex items-center rounded-md bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
+                ECO
+              </span>
+              <span className="text-xs font-medium text-gray-500">
+                {eco?.status === 'applied' ? 'Applied' : initialEcoId ? 'Details' : 'Draft'}
+              </span>
+            </div>
+            <h2 className="text-2xl font-bold tracking-tight text-gray-900">
+              {eco?.status === 'applied' ? 'ECO Applied' : initialEcoId ? 'ECO Details' : 'New Change Order'}
+            </h2>
+            <p className="text-sm text-gray-500 mt-1">
+              Current Stage: <span className="font-medium text-gray-900">{eco?.currentStage?.name || 'New'}</span>
             </p>
-            <h2 className="text-xl font-semibold text-gray-900">{eco?.status === 'applied' ? 'ECO Applied' : initialEcoId ? 'ECO Details' : 'New ECO'}</h2>
-            <p className="text-xs text-gray-500">Stage: {eco?.currentStage?.name || 'New'}</p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-3">
             {started && eco?.status === 'in_progress' && canApprove && (
               <>
                 {eco?.currentStage?.approvalRequired ? (
@@ -943,7 +952,7 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initi
                       type="button"
                       onClick={handleApprove}
                       disabled={submitting}
-                      className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-300"
+                      className="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-500 hover:shadow-md hover:shadow-emerald-600/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Approve
                     </button>
@@ -951,7 +960,7 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initi
                       type="button"
                       onClick={handleReject}
                       disabled={submitting}
-                      className="rounded-md bg-rose-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-rose-700 disabled:cursor-not-allowed disabled:bg-rose-300"
+                      className="rounded-xl bg-white px-5 py-2.5 text-sm font-semibold text-rose-600 shadow-sm ring-1 ring-inset ring-rose-300 hover:bg-rose-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Reject
                     </button>
@@ -961,7 +970,7 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initi
                     type="button"
                     onClick={handleValidate}
                     disabled={submitting}
-                    className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-300"
+                    className="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-500 hover:shadow-md hover:shadow-emerald-600/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Validate
                   </button>
@@ -969,16 +978,18 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initi
               </>
             )}
             {started && eco?.status === 'in_progress' && !canApprove && (
-              <span className="text-xs font-semibold text-gray-500">Awaiting approval</span>
+              <span className="inline-flex items-center rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700 ring-1 ring-inset ring-amber-600/20">
+                Awaiting approval
+              </span>
             )}
             {!started && canEdit && (
               <button
                 type="button"
                 onClick={handleStart}
                 disabled={disableStart}
-                className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-300"
+                className="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-500 hover:shadow-md hover:shadow-emerald-600/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-300"
               >
-                Start
+                Start Process
               </button>
             )}
             {!started && canEdit && (
@@ -986,26 +997,29 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initi
                 type="button"
                 onClick={handleSave}
                 disabled={disableSave}
-                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:border-emerald-500 hover:text-emerald-700 disabled:cursor-not-allowed disabled:text-gray-400"
+                className="rounded-xl bg-white px-5 py-2.5 text-sm font-semibold text-gray-700 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Save
+                Save Draft
               </button>
             )}
             <button
               type="button"
               onClick={handleCloseRequest}
               disabled={submitting}
-              className="rounded-md border border-transparent px-3 py-2 text-sm font-semibold text-gray-500 transition-colors hover:text-gray-700"
+              className="rounded-xl p-2.5 text-gray-400 hover:text-gray-500 hover:bg-gray-100 transition-all"
+              title="Close"
             >
-              Close
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
             </button>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-5">
+        <div className="flex-1 overflow-y-auto px-8 py-8">
           {message && (
             <div
-              className={`mb-4 rounded-md border px-3 py-2 text-sm ${
+              className={`mb-4 rounded-lg border px-3 py-2 text-sm ${
                 message.type === 'error'
                   ? 'border-red-200 bg-red-50 text-red-700'
                   : 'border-emerald-200 bg-emerald-50 text-emerald-700'
@@ -1022,8 +1036,8 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initi
                 onClick={handleShowApproval}
                 className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
                   reviewTab === 'approval'
-                    ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
-                    : 'border-slate-200 text-slate-600 hover:border-emerald-200 hover:text-emerald-700'
+                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                    : 'border-gray-200 text-gray-600 hover:border-emerald-200 hover:text-emerald-700'
                 }`}
               >
                 Approval
@@ -1032,7 +1046,7 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initi
                 type="button"
                 onClick={handleOpenSource}
                 disabled={!canOpenSource}
-                className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 transition-colors hover:border-emerald-200 hover:text-emerald-700 disabled:cursor-not-allowed disabled:text-slate-300"
+                className="rounded-full border border-gray-200 px-3 py-1 text-xs font-semibold text-gray-600 transition-colors hover:border-emerald-200 hover:text-emerald-700 disabled:cursor-not-allowed disabled:text-gray-300"
               >
                 {form.ecoType === 'bom' ? 'Open Bill of Materials' : 'Open Product'}
               </button>
@@ -1041,8 +1055,8 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initi
                 onClick={handleShowChanges}
                 className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
                   reviewTab === 'changes'
-                    ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
-                    : 'border-slate-200 text-slate-600 hover:border-emerald-200 hover:text-emerald-700'
+                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                    : 'border-gray-200 text-gray-600 hover:border-emerald-200 hover:text-emerald-700'
                 }`}
               >
                 Changes
@@ -1051,40 +1065,40 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initi
           )}
 
           {loadingOptions ? (
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-6 sm:grid-cols-2">
               <div className="sm:col-span-2 space-y-2">
                 <Skeleton className="h-4 w-16" />
-                <Skeleton className="h-9 w-full" />
+                <Skeleton className="h-11 w-full rounded-xl" />
               </div>
               <div className="space-y-2">
                 <Skeleton className="h-4 w-20" />
-                <Skeleton className="h-9 w-full" />
+                <Skeleton className="h-11 w-full rounded-xl" />
               </div>
               <div className="space-y-2">
                 <Skeleton className="h-4 w-24" />
-                <Skeleton className="h-9 w-full" />
+                <Skeleton className="h-11 w-full rounded-xl" />
               </div>
               <div className="space-y-2">
                 <Skeleton className="h-4 w-28" />
-                <Skeleton className="h-9 w-full" />
+                <Skeleton className="h-11 w-full rounded-xl" />
               </div>
               <div className="space-y-2">
                 <Skeleton className="h-4 w-16" />
-                <Skeleton className="h-9 w-full" />
+                <Skeleton className="h-11 w-full rounded-xl" />
               </div>
               <div className="space-y-2">
                 <Skeleton className="h-4 w-24" />
-                <Skeleton className="h-9 w-full" />
+                <Skeleton className="h-11 w-full rounded-xl" />
               </div>
-              <div className="sm:col-span-2 pt-6 flex items-center gap-3">
-                <Skeleton className="h-4 w-4" />
+              <div className="sm:col-span-2 pt-4 flex items-center gap-3">
+                <Skeleton className="h-5 w-5 rounded" />
                 <Skeleton className="h-4 w-64" />
               </div>
             </div>
           ) : (
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-6 sm:grid-cols-2">
               <div className="sm:col-span-2">
-                <label className="text-sm font-medium text-gray-700">
+                <label className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1.5 block">
                   Title <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -1092,19 +1106,20 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initi
                   value={form.title}
                   onChange={updateField('title')}
                   disabled={disableStructuralInputs}
-                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:bg-gray-100"
+                  placeholder="Enter a descriptive title for this ECO..."
+                  className="w-full rounded-xl border-gray-200 bg-gray-50/50 px-4 py-2.5 text-sm text-gray-900 transition-all focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-gray-100 disabled:text-gray-500"
                 />
               </div>
 
               <div>
-                <label className="text-sm font-medium text-gray-700">
+                <label className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1.5 block">
                   ECO Type <span className="text-red-500">*</span>
                 </label>
                 <select
                   value={form.ecoType}
                   onChange={handleEcoTypeChange}
                   disabled={disableStructuralInputs}
-                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:bg-gray-100"
+                  className="w-full rounded-xl border-gray-200 bg-gray-50/50 px-4 py-2.5 text-sm text-gray-900 transition-all focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-gray-100 disabled:text-gray-500"
                 >
                   <option value="">Select ECO type</option>
                   <option value="product">Product</option>
@@ -1113,14 +1128,14 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initi
               </div>
 
               <div>
-                <label className="text-sm font-medium text-gray-700">
+                <label className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1.5 block">
                   Product <span className="text-red-500">*</span>
                 </label>
                 <select
                   value={form.productId}
                   onChange={handleProductChange}
                   disabled={disableStructuralInputs}
-                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:bg-gray-100"
+                  className="w-full rounded-xl border-gray-200 bg-gray-50/50 px-4 py-2.5 text-sm text-gray-900 transition-all focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-gray-100 disabled:text-gray-500"
                 >
                   <option value="">Select product</option>
                   {products.map((product) => (
@@ -1133,14 +1148,14 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initi
 
               {form.ecoType === 'bom' && (
                 <div>
-                  <label className="text-sm font-medium text-gray-700">
+                  <label className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1.5 block">
                     Bill of Materials <span className="text-red-500">*</span>
                   </label>
                   <select
                     value={form.bomId}
                     onChange={updateField('bomId')}
                     disabled={disableStructuralInputs || !form.productId}
-                    className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:bg-gray-100"
+                    className="w-full rounded-xl border-gray-200 bg-gray-50/50 px-4 py-2.5 text-sm text-gray-900 transition-all focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-gray-100 disabled:text-gray-500"
                   >
                     <option value="">Select BoM version</option>
                     {boms.map((bom) => (
@@ -1153,14 +1168,14 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initi
               )}
 
               <div>
-                <label className="text-sm font-medium text-gray-700">
+                <label className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1.5 block">
                   User <span className="text-red-500">*</span>
                 </label>
                 <select
                   value={form.raisedById}
                   onChange={updateField('raisedById')}
                   disabled={!isAdmin || disableStructuralInputs}
-                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:bg-gray-100"
+                  className="w-full rounded-xl border-gray-200 bg-gray-50/50 px-4 py-2.5 text-sm text-gray-900 transition-all focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-gray-100 disabled:text-gray-500"
                 >
                   <option value="">Select user</option>
                   {users.map((userOption) => (
@@ -1170,56 +1185,56 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initi
                   ))}
                 </select>
                 {!isAdmin && (
-                  <p className="mt-1 text-xs text-gray-500">
+                  <p className="mt-1.5 text-xs text-gray-500">
                     Raised by is locked to your account.
                   </p>
                 )}
               </div>
 
               <div>
-                <label className="text-sm font-medium text-gray-700">Effective Date</label>
+                <label className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1.5 block">Effective Date</label>
                 <input
                   type="datetime-local"
                   value={form.effectiveDate}
                   onChange={updateField('effectiveDate')}
                   disabled={disableInputs}
-                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:bg-gray-100 disabled:text-gray-500"
+                  className="w-full rounded-xl border-gray-200 bg-gray-50/50 px-4 py-2.5 text-sm text-gray-900 transition-all focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-gray-100 disabled:text-gray-500"
                 />
-                <p className="mt-1 text-xs text-gray-500">
+                <p className="mt-1.5 text-xs text-gray-500">
                   Auto-populated when ECO is done.
                 </p>
               </div>
 
-              <div className="flex items-center gap-3 pt-6">
+              <div className="flex items-center gap-3 pt-4 sm:col-span-2">
                 <input
                   id="versionUpdate"
                   type="checkbox"
                   checked={form.versionUpdate}
                   onChange={updateField('versionUpdate')}
                   disabled={disableInputs}
-                  className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                  className="h-5 w-5 rounded-md border-gray-300 text-emerald-600 focus:ring-emerald-500"
                 />
-                <label htmlFor="versionUpdate" className="text-sm text-gray-700">
-                  Version Update (create a new version on approval)
+                <label htmlFor="versionUpdate" className="text-sm font-medium text-gray-700">
+                  Version Update <span className="font-normal text-gray-500">(create a new version on approval)</span>
                 </label>
               </div>
             </div>
           )}
 
-          <div ref={changesRef} className="mt-6 border-t border-gray-200 pt-5">
+          <div ref={changesRef} className="mt-8 border-t border-gray-100 pt-8">
             {started ? (
               <div className="space-y-4">
                 {reviewTab === 'approval' && (
-                  <div className="rounded-lg border border-emerald-100 bg-emerald-50/60 px-4 py-3 text-sm text-emerald-800">
+                  <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 px-5 py-4 text-sm text-emerald-800">
                     Review the header fields above and the proposed changes before approving. Use the action
                     buttons in the header to approve, validate, or reject this ECO.
                   </div>
                 )}
                 {reviewTab === 'changes' && (
                   <>
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-sm font-semibold text-gray-900">Proposed Changes</h3>
-                      <span className="rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-bold text-gray-900 tracking-tight">Proposed Changes</h3>
+                      <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
                         Review Mode
                       </span>
                     </div>
@@ -1233,107 +1248,81 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initi
                 )}
               </div>
             ) : (
-              <>
-                <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="rounded-2xl border border-gray-100 bg-gray-50/30 p-6">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-6">
                   <div>
-                    <h3 className="text-sm font-semibold text-gray-900">Draft Changes</h3>
-                    <p className="text-xs text-gray-500">
+                    <h3 className="text-lg font-bold text-gray-900 tracking-tight">Draft Changes</h3>
+                    <p className="text-sm text-gray-500 mt-1">
                       Update the draft details for the selected ECO type.
                     </p>
                   </div>
                   {draftTouched && (
-                    <span className="rounded-full bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-700">
+                    <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700 ring-1 ring-inset ring-amber-600/20">
                       Unsaved changes
                     </span>
                   )}
                 </div>
 
                 {!ecoId && (
-                  <p className="mt-3 text-xs text-gray-500">
-                    Save the ECO first to load and edit draft changes.
-                  </p>
+                  <div className="flex flex-col items-center justify-center py-12 border-2 border-dashed border-gray-200 rounded-xl bg-white/50">
+                    <p className="text-sm font-medium text-gray-500">
+                      Save the ECO details above to start editing changes.
+                    </p>
+                  </div>
                 )}
 
                 {autoCreateError && (
-                  <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                  <div className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
                     {autoCreateError}
                   </div>
                 )}
 
                 {draftError && (
-                  <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                  <div className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
                     {draftError}
                   </div>
                 )}
 
                 {draftLoading ? (
-                  <div className="mt-4 space-y-6">
+                  <div className="mt-6 space-y-6">
                     {form.ecoType === 'product' ? (
-                      <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="grid gap-6 sm:grid-cols-2">
                         <div className="sm:col-span-2 space-y-2">
                           <Skeleton className="h-4 w-24" />
-                          <Skeleton className="h-9 w-full" />
+                          <Skeleton className="h-11 w-full rounded-xl" />
                         </div>
                         <div className="space-y-2">
                           <Skeleton className="h-4 w-20" />
-                          <Skeleton className="h-9 w-full" />
+                          <Skeleton className="h-11 w-full rounded-xl" />
                         </div>
                         <div className="space-y-2">
                           <Skeleton className="h-4 w-20" />
-                          <Skeleton className="h-9 w-full" />
+                          <Skeleton className="h-11 w-full rounded-xl" />
                         </div>
                         <div className="sm:col-span-2 space-y-2">
                           <Skeleton className="h-4 w-24" />
-                          <Skeleton className="h-24 w-full" />
+                          <Skeleton className="h-24 w-full rounded-xl" />
                         </div>
                       </div>
                     ) : (
                       <div className="space-y-6">
+                         {/* Keeping existing skeleton structure but updated classes */}
                         <div className="space-y-3">
                           <Skeleton className="h-4 w-24" />
-                          <div className="rounded-md border border-gray-200 overflow-hidden">
-                            <div className="bg-gray-50 px-3 py-2 border-b border-gray-200">
-                              <div className="grid grid-cols-12 gap-2">
-                                <Skeleton className="col-span-8 h-3 w-16" />
-                                <Skeleton className="col-span-4 h-3 w-12" />
+                          <div className="rounded-xl border border-gray-200 overflow-hidden">
+                            <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
+                              <div className="grid grid-cols-12 gap-4">
+                                <Skeleton className="col-span-8 h-4 w-16" />
+                                <Skeleton className="col-span-4 h-4 w-12" />
                               </div>
                             </div>
-                            <div className="p-3 space-y-3">
-                              <div className="grid grid-cols-12 gap-2">
-                                <div className="col-span-8 space-y-1">
-                                  <Skeleton className="h-4 w-32" />
-                                  <Skeleton className="h-3 w-16" />
+                            <div className="p-4 space-y-4">
+                              <div className="grid grid-cols-12 gap-4">
+                                <div className="col-span-8 space-y-2">
+                                  <Skeleton className="h-5 w-32" />
+                                  <Skeleton className="h-4 w-16" />
                                 </div>
-                                <Skeleton className="col-span-4 h-8 w-full" />
-                              </div>
-                              <div className="grid grid-cols-12 gap-2">
-                                <div className="col-span-8 space-y-1">
-                                  <Skeleton className="h-4 w-40" />
-                                  <Skeleton className="h-3 w-16" />
-                                </div>
-                                <Skeleton className="col-span-4 h-8 w-full" />
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="space-y-3">
-                          <div className="flex justify-between items-center">
-                            <Skeleton className="h-4 w-24" />
-                            <Skeleton className="h-6 w-24" />
-                          </div>
-                          <div className="rounded-md border border-gray-200 overflow-hidden">
-                            <div className="bg-gray-50 px-3 py-2 border-b border-gray-200">
-                              <div className="grid grid-cols-12 gap-2">
-                                <Skeleton className="col-span-5 h-3 w-16" />
-                                <Skeleton className="col-span-3 h-3 w-16" />
-                                <Skeleton className="col-span-4 h-3 w-12" />
-                              </div>
-                            </div>
-                            <div className="p-3 space-y-3">
-                              <div className="grid grid-cols-12 gap-2">
-                                <Skeleton className="col-span-5 h-8 w-full" />
-                                <Skeleton className="col-span-3 h-8 w-full" />
-                                <Skeleton className="col-span-4 h-8 w-full" />
+                                <Skeleton className="col-span-4 h-9 w-full rounded-lg" />
                               </div>
                             </div>
                           </div>
@@ -1344,9 +1333,9 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initi
                 ) : (
                   <>
                     {form.ecoType === 'product' && (
-                      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                      <div className="mt-6 grid gap-6 sm:grid-cols-2">
                     <div className="sm:col-span-2">
-                      <label className="text-sm font-medium text-gray-700">
+                      <label className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1.5 block">
                         Product Name
                       </label>
                       <input
@@ -1354,55 +1343,55 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initi
                         value={productDraft.newProductName}
                         onChange={updateProductDraftField('newProductName')}
                         disabled={disableDraftInputs}
-                        className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:bg-gray-100"
+                        className="w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 shadow-sm transition-all placeholder:text-gray-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-gray-50"
                       />
                     </div>
                     <div>
-                      <label className="text-sm font-medium text-gray-700">Sale Price</label>
+                      <label className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1.5 block">Sale Price</label>
                       <input
                         type="number"
                         step="0.01"
                         value={productDraft.newSalePrice}
                         onChange={updateProductDraftField('newSalePrice')}
                         disabled={disableDraftInputs}
-                        className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:bg-gray-100"
+                        className="w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 shadow-sm transition-all placeholder:text-gray-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-gray-50"
                       />
                     </div>
                     <div>
-                      <label className="text-sm font-medium text-gray-700">Cost Price</label>
+                      <label className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1.5 block">Cost Price</label>
                       <input
                         type="number"
                         step="0.01"
                         value={productDraft.newCostPrice}
                         onChange={updateProductDraftField('newCostPrice')}
                         disabled={disableDraftInputs}
-                        className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:bg-gray-100"
+                        className="w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 shadow-sm transition-all placeholder:text-gray-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-gray-50"
                       />
                     </div>
                     <div className="sm:col-span-2">
-                      <label className="text-sm font-medium text-gray-700">Attachments</label>
+                      <label className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1.5 block">Attachments</label>
                       <textarea
                         value={productDraft.newAttachments}
                         onChange={updateProductDraftField('newAttachments')}
                         disabled={disableDraftInputs}
                         rows={3}
-                        className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:bg-gray-100"
+                        className="w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 shadow-sm transition-all placeholder:text-gray-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-gray-50"
                       />
                     </div>
                   </div>
                 )}
 
                 {form.ecoType === 'bom' && (
-                  <div className="mt-4 space-y-4">
+                  <div className="mt-6 space-y-6">
                     <div>
-                      <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                      <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">
                         Components
                       </h4>
                       {bomDraft.components.length === 0 ? (
-                        <p className="mt-2 text-xs text-gray-500">No components available.</p>
+                        <p className="text-sm text-gray-500 italic">No components available.</p>
                       ) : (
-                        <div className="mt-2 overflow-hidden rounded-md border border-gray-200">
-                          <div className="grid grid-cols-12 gap-2 bg-gray-50 px-3 py-2 text-[11px] font-semibold uppercase text-gray-500">
+                        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+                          <div className="grid grid-cols-12 gap-4 bg-gray-50 px-4 py-3 text-[11px] font-semibold uppercase text-gray-500 border-b border-gray-100">
                             <div className="col-span-8">Component</div>
                             <div className="col-span-4">Quantity</div>
                           </div>
@@ -1410,16 +1399,16 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initi
                             {bomDraft.components.map((component, index) => (
                               <div
                                 key={`${component.componentProductVersionId}-${index}`}
-                                className="flex flex-col sm:grid sm:grid-cols-12 gap-2 px-3 py-3 sm:py-2 text-sm text-gray-700"
+                                className="flex flex-col sm:grid sm:grid-cols-12 gap-3 px-4 py-3 text-sm text-gray-700 items-center"
                               >
-                                <div className="col-span-8">
-                                  <div className="font-bold text-gray-900 leading-tight">
+                                <div className="col-span-8 w-full">
+                                  <div className="font-medium text-gray-900 leading-tight">
                                     {component.productName}
                                   </div>
-                                  <div className="text-[10px] font-bold text-gray-400 uppercase tracking-tight mt-0.5">{component.productCode}</div>
+                                  <div className="text-xs text-gray-500 mt-0.5 font-mono">{component.productCode}</div>
                                 </div>
-                                <div className="col-span-4 flex items-center">
-                                  <span className="sm:hidden text-[10px] font-bold text-gray-400 uppercase tracking-tight mr-2">Qty:</span>
+                                <div className="col-span-4 flex items-center w-full">
+                                  <span className="sm:hidden text-xs font-medium text-gray-500 mr-2">Qty:</span>
                                   <input
                                     type="number"
                                     step="0.01"
@@ -1428,7 +1417,7 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initi
                                       updateBomComponent(index, event.target.value)
                                     }
                                     disabled={disableDraftInputs}
-                                    className="w-full h-9 rounded-lg border border-gray-300 px-3 py-1 text-sm text-gray-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-gray-50"
+                                    className="w-full rounded-lg border-gray-200 bg-gray-50 px-3 py-1.5 text-sm text-gray-900 transition-all focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-gray-50"
                                   />
                                 </div>
                               </div>
@@ -1439,15 +1428,15 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initi
                     </div>
 
                     <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <h4 className="text-[11px] font-bold uppercase tracking-widest text-gray-400">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500">
                           Operations
                         </h4>
                         <button
                           type="button"
                           onClick={addBomOperation}
                           disabled={disableDraftInputs}
-                          className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 hover:border-emerald-300 hover:bg-emerald-100 transition-all disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400"
+                          className="flex items-center gap-1.5 rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
@@ -1456,12 +1445,12 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initi
                         </button>
                       </div>
                       {bomDraft.operations.length === 0 ? (
-                        <div className="mt-2 flex flex-col items-center justify-center py-8 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/50">
-                          <p className="text-xs font-medium text-gray-400 uppercase tracking-tight">No operations added</p>
+                        <div className="flex flex-col items-center justify-center py-8 border-2 border-dashed border-gray-200 rounded-xl bg-white/50">
+                          <p className="text-sm font-medium text-gray-400">No operations added yet</p>
                         </div>
                       ) : (
-                        <div className="mt-2 overflow-hidden rounded-xl border border-gray-200 shadow-sm">
-                          <div className="hidden sm:grid grid-cols-12 gap-2 bg-gray-50 px-3 py-2.5 text-[10px] font-bold uppercase tracking-widest text-gray-400 border-b border-gray-200">
+                        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+                          <div className="hidden sm:grid grid-cols-12 gap-4 bg-gray-50 px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-gray-500 border-b border-gray-100">
                             <div className="col-span-5">Operation</div>
                             <div className="col-span-3">Work Center</div>
                             <div className="col-span-4 text-right pr-12">Minutes</div>
@@ -1470,10 +1459,10 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initi
                             {bomDraft.operations.map((operation, index) => (
                               <div
                                 key={operation.localId}
-                                className="flex flex-col sm:grid sm:grid-cols-12 gap-3 sm:gap-2 px-4 py-4 sm:px-3 sm:py-2.5 text-sm text-gray-700 hover:bg-gray-50/50 transition-colors"
+                                className="flex flex-col sm:grid sm:grid-cols-12 gap-4 px-4 py-4 sm:py-3 text-sm text-gray-700 hover:bg-gray-50/50 transition-colors items-center"
                               >
-                                <div className="col-span-5">
-                                  <span className="sm:hidden text-[10px] font-bold text-gray-400 uppercase tracking-tight mb-1 block">Operation Name</span>
+                                <div className="col-span-5 w-full">
+                                  <span className="sm:hidden text-xs font-medium text-gray-500 mb-1 block">Operation Name</span>
                                   <input
                                     type="text"
                                     value={operation.operationName}
@@ -1482,11 +1471,11 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initi
                                       updateBomOperation(index, 'operationName', event.target.value)
                                     }
                                     disabled={disableDraftInputs}
-                                    className="w-full h-9 rounded-lg border border-gray-300 px-3 py-1 text-sm text-gray-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-gray-50"
+                                    className="w-full rounded-lg border-gray-200 bg-gray-50 px-3 py-1.5 text-sm text-gray-900 transition-all focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-gray-50"
                                   />
                                 </div>
-                                <div className="col-span-3">
-                                  <span className="sm:hidden text-[10px] font-bold text-gray-400 uppercase tracking-tight mb-1 block">Work Center</span>
+                                <div className="col-span-3 w-full">
+                                  <span className="sm:hidden text-xs font-medium text-gray-500 mb-1 block">Work Center</span>
                                   <input
                                     type="text"
                                     value={operation.workCenter}
@@ -1495,13 +1484,13 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initi
                                       updateBomOperation(index, 'workCenter', event.target.value)
                                     }
                                     disabled={disableDraftInputs}
-                                    className="w-full h-9 rounded-lg border border-gray-300 px-3 py-1 text-sm text-gray-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-gray-50"
+                                    className="w-full rounded-lg border-gray-200 bg-gray-50 px-3 py-1.5 text-sm text-gray-900 transition-all focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-gray-50"
                                   />
                                 </div>
-                                <div className="col-span-4">
-                                  <div className="flex items-center gap-2">
+                                <div className="col-span-4 w-full">
+                                  <div className="flex items-center gap-3">
                                     <div className="flex-1">
-                                      <span className="sm:hidden text-[10px] font-bold text-gray-400 uppercase tracking-tight mb-1 block">Minutes</span>
+                                      <span className="sm:hidden text-xs font-medium text-gray-500 mb-1 block">Minutes</span>
                                       <input
                                         type="number"
                                         value={operation.timeMinutes}
@@ -1510,14 +1499,14 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initi
                                           updateBomOperation(index, 'timeMinutes', event.target.value)
                                         }
                                         disabled={disableDraftInputs}
-                                        className="w-full h-9 rounded-lg border border-gray-300 px-3 py-1 text-sm text-gray-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-gray-50"
+                                        className="w-full rounded-lg border-gray-200 bg-gray-50 px-3 py-1.5 text-sm text-gray-900 transition-all focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-gray-50"
                                       />
                                     </div>
                                     <button
                                       type="button"
                                       onClick={() => removeBomOperation(index)}
                                       disabled={disableDraftInputs}
-                                      className="mt-5 sm:mt-0 flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-400 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 transition-all disabled:cursor-not-allowed"
+                                      className="mt-5 sm:mt-0 flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-400 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                                       title="Remove operation"
                                     >
                                       <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1536,12 +1525,12 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initi
                 )}
                   </>
                 )}
-              </>
+              </div>
             )}
           </div>
 
           {started && (
-            <div className="mt-4 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            <div className="mt-6 rounded-xl border border-emerald-100 bg-emerald-50 px-5 py-4 text-sm text-emerald-700">
               This ECO is now in progress. Draft edits are locked.
             </div>
           )}
@@ -1549,7 +1538,7 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initi
       </div>
 
       {showCloseConfirm && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/30 px-4">
+        <div className="absolute inset-0 flex items-center justify-center bg-black/30 px-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-lg border border-gray-200 bg-white p-5 shadow-xl">
             <h3 className="text-base font-semibold text-gray-900">Start ECO before closing?</h3>
             <p className="mt-2 text-sm text-gray-600">
@@ -1560,14 +1549,14 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initi
               <button
                 type="button"
                 onClick={() => setShowCloseConfirm(false)}
-                className="rounded-md border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-600 hover:border-gray-300"
+                className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-600 hover:border-gray-300"
               >
                 Keep editing
               </button>
               <button
                 type="button"
                 onClick={handleCloseAnyway}
-                className="rounded-md border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-600 hover:border-gray-300"
+                className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-600 hover:border-gray-300"
               >
                 Close draft
               </button>
@@ -1575,7 +1564,7 @@ export function EcoCreateModal({ isOpen, onClose, currentUser, onComplete, initi
                 type="button"
                 onClick={handleConfirmStart}
                 disabled={disableStart}
-                className="rounded-md bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-300"
+                className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-300"
               >
                 Start ECO
               </button>

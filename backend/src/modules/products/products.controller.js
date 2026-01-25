@@ -10,7 +10,7 @@ import { success } from '../../utils/response.js';
 export const listProductsController = asyncHandler(async (req, res) => {
   const { status } = req.query;
   const role = req.user?.role;
-  const allStatuses = ['active', 'archived'];
+  const allStatuses = ['active', 'archived', 'draft'];
 
   const parseStatusQuery = (value) => {
     if (!value || typeof value !== 'string') {
@@ -33,12 +33,7 @@ export const listProductsController = asyncHandler(async (req, res) => {
   const parsed = parseStatusQuery(status);
   let statuses = parsed?.statuses ?? ['active'];
 
-  if (parsed?.requestedAll && role !== 'admin') {
-    const error = new Error('Only admins can request all product statuses');
-    error.statusCode = 403;
-    throw error;
-  }
-
+  // Operations role can only view active products
   if (role === 'operations') {
     statuses = ['active'];
   }

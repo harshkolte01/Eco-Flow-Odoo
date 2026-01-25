@@ -55,12 +55,12 @@ const statusLabels: Record<EcoListItem['status'], string> = {
 };
 
 const statusClasses: Record<EcoListItem['status'], string> = {
-  draft: 'bg-slate-100 text-slate-600 border-slate-200/50',
-  in_progress: 'bg-amber-50 text-amber-700 border-amber-200/50',
-  approved: 'bg-emerald-50 text-emerald-700 border-emerald-200/50',
-  applied: 'bg-indigo-50 text-indigo-700 border-indigo-200/50',
-  active: 'bg-sky-50 text-sky-700 border-sky-200/50',
-  archived: 'bg-gray-50 text-gray-500 border-gray-200/50'
+  draft: 'bg-gray-100 text-gray-700',
+  in_progress: 'bg-blue-50 text-blue-700',
+  approved: 'bg-emerald-50 text-emerald-700',
+  applied: 'bg-purple-50 text-purple-700',
+  active: 'bg-green-50 text-green-700',
+  archived: 'bg-gray-50 text-gray-500'
 };
 
 const formatEcoType = (ecoType?: EcoListItem['ecoType']) => {
@@ -78,13 +78,13 @@ const formatDate = (value?: string | null) => {
   if (Number.isNaN(parsed.getTime())) {
     return '—';
   }
-  return parsed.toLocaleString(undefined, {
-    day: '2-digit',
-    month: '2-digit',
+  // Use UTC to prevent hydration mismatches between server and client timezones
+  return new Intl.DateTimeFormat('en-US', {
     year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  });
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'UTC'
+  }).format(parsed);
 };
 
 const getUpdatedMeta = (eco: EcoListItem) => {
@@ -122,7 +122,7 @@ export function EcoListPanel({
     return (
       <div className="space-y-4">
         {[1, 2, 3].map((i) => (
-          <div key={i} className="h-20 w-full animate-pulse rounded-2xl bg-slate-100" />
+          <div key={i} className="h-16 w-full animate-pulse rounded-lg bg-gray-100" />
         ))}
       </div>
     );
@@ -130,20 +130,14 @@ export function EcoListPanel({
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-rose-100 bg-rose-50/30 p-12 text-center">
-        <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-rose-100 text-rose-600">
-          <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-          </svg>
-        </div>
-        <h3 className="text-sm font-bold text-rose-900">Load Failed</h3>
-        <p className="mt-1 text-xs text-rose-600/80">{error}</p>
+      <div className="flex flex-col items-center justify-center rounded-lg border border-red-200 bg-red-50 p-8 text-center">
+        <p className="text-sm text-red-600 mb-3">{error}</p>
         <button
           type="button"
           onClick={onRetry}
-          className="mt-4 inline-flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2 text-xs font-bold text-white shadow-lg shadow-rose-600/20 hover:bg-rose-700 transition-all active:scale-95"
+          className="text-xs font-medium text-red-700 hover:text-red-800 underline"
         >
-          Retry Connection
+          Retry
         </button>
       </div>
     );
@@ -151,131 +145,146 @@ export function EcoListPanel({
 
   if (ecos.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-3xl border-2 border-dashed border-slate-200 bg-slate-50/50 p-20 text-center">
-        <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-3xl bg-white border border-slate-200 shadow-sm">
-          <svg className="h-8 w-8 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0H4" />
-          </svg>
-        </div>
-        <h3 className="text-sm font-bold text-slate-900">No Items Found</h3>
-        <p className="mt-1 text-xs text-slate-500">Your search didn&apos;t return any results.</p>
+      <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-gray-300 p-12 text-center">
+        <p className="text-sm text-gray-500">No items found</p>
       </div>
     );
   }
 
   if (viewMode === 'kanban') {
     return (
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-        {statusOrder.map((status) => (
-          <div key={status} className="flex flex-col bg-slate-50/50 rounded-3xl border border-slate-200/60 shadow-sm min-h-[300px]">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200/60 bg-white/50 backdrop-blur-sm rounded-t-[22px]">
-              <h3 className="text-[10px] font-black text-slate-900 uppercase tracking-[0.2em]">{statusLabels[status]}</h3>
-              <span className="flex h-5 min-w-[20px] items-center justify-center rounded-lg bg-slate-900 px-1.5 text-[9px] font-black text-white">
-                {grouped[status].length}
-              </span>
-            </div>
-            <div className="flex-1 flex flex-col gap-4 p-4 overflow-y-auto max-h-[600px] no-scrollbar">
-              {grouped[status].length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 px-4 border-2 border-dashed border-slate-200 rounded-2xl">
-                  <p className="text-[9px] font-bold text-slate-300 uppercase tracking-widest">No Items</p>
+      <div className="flex h-full gap-6 overflow-x-auto pb-6 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent">
+        {statusOrder.map((status) => {
+          const items = grouped[status];
+          const count = items.length;
+          
+          // Column header colors
+          const headerColors: Record<EcoListItem['status'], string> = {
+            draft: 'bg-gray-100 text-gray-700 border-gray-200',
+            in_progress: 'bg-blue-50 text-blue-700 border-blue-100',
+            approved: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+            applied: 'bg-purple-50 text-purple-700 border-purple-100',
+            active: 'bg-green-50 text-green-700 border-green-100',
+            archived: 'bg-gray-50 text-gray-500 border-gray-200'
+          };
+
+          const borderColors: Record<EcoListItem['status'], string> = {
+            draft: 'border-l-gray-400',
+            in_progress: 'border-l-blue-500',
+            approved: 'border-l-emerald-500',
+            applied: 'border-l-purple-500',
+            active: 'border-l-green-500',
+            archived: 'border-l-gray-400'
+          };
+
+          return (
+            <div key={status} className="flex min-w-[320px] max-w-[320px] flex-col rounded-xl bg-gray-50/80 border border-gray-200 h-fit max-h-full">
+              {/* Column Header */}
+              <div className={`flex items-center justify-between p-3 rounded-t-xl border-b ${headerColors[status].split(' ')[2]}`}>
+                <div className="flex items-center gap-2">
+                  <div className={`h-2 w-2 rounded-full ${headerColors[status].replace('bg-', 'bg-opacity-100 bg-').split(' ')[0].replace('50', '500')}`} />
+                  <h3 className="text-sm font-semibold text-gray-900">{statusLabels[status]}</h3>
                 </div>
-              ) : (
-                grouped[status].map((eco) => {
-                  const isOpenableEco =
-                    eco.kind === 'eco' && !!onOpenEco && openableStatuses.includes(eco.status);
-                  const actionLabel = eco.status === 'draft' ? 'Start' : 'Review';
-                  const { timestamp, label } = getUpdatedMeta(eco);
+                <span className={`px-2 py-0.5 rounded-full text-xs font-medium bg-white/60 ${headerColors[status].split(' ')[1]}`}>
+                  {count}
+                </span>
+              </div>
 
-                  return (
-                    <div
-                      key={`${eco.kind ?? 'eco'}-${eco.id}`}
-                      onClick={isOpenableEco ? () => onOpenEco(eco.id) : undefined}
-                      role={isOpenableEco ? 'button' : undefined}
-                      tabIndex={isOpenableEco ? 0 : undefined}
-                      onKeyDown={isOpenableEco ? (e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault();
-                          onOpenEco(eco.id);
-                        }
-                      } : undefined}
-                      className={`group relative flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-300 ${isOpenableEco
-                        ? 'cursor-pointer hover:border-emerald-500 hover:shadow-xl hover:shadow-emerald-500/5 hover:-translate-y-1 active:scale-[0.98]'
-                        : ''
+              {/* Cards Container */}
+              <div className="flex-1 flex flex-col gap-3 p-3 overflow-y-auto max-h-[calc(100vh-280px)] scrollbar-thin scrollbar-thumb-gray-200">
+                {items.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-32 rounded-lg border-2 border-dashed border-gray-200 text-gray-400 bg-white/50">
+                    <span className="text-xs">No items</span>
+                  </div>
+                ) : (
+                  items.map((eco) => {
+                    const isOpenableEco =
+                      eco.kind === 'eco' && !!onOpenEco && openableStatuses.includes(eco.status);
+                    const { timestamp } = getUpdatedMeta(eco);
+
+                    return (
+                      <div
+                        key={`${eco.kind ?? 'eco'}-${eco.id}`}
+                        onClick={isOpenableEco ? () => onOpenEco(eco.id) : undefined}
+                        role={isOpenableEco ? 'button' : undefined}
+                        tabIndex={isOpenableEco ? 0 : undefined}
+                        onKeyDown={isOpenableEco ? (e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            onOpenEco(eco.id);
+                          }
+                        } : undefined}
+                        className={`group relative flex flex-col gap-3 rounded-lg border border-gray-200 bg-white p-4 shadow-sm transition-all border-l-4 ${borderColors[status]} ${
+                          isOpenableEco
+                            ? 'cursor-pointer hover:shadow-md hover:-translate-y-0.5'
+                            : ''
                         }`}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1">
-                          <p className="text-sm font-bold text-slate-900 group-hover:text-emerald-700 transition-colors line-clamp-2 leading-tight">{eco.title}</p>
-                          <div className="flex items-center gap-2 mt-1.5">
-                            <span className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">
-                              {eco.kind === 'product' ? 'Product' : formatEcoType(eco.ecoType)}
-                            </span>
-                            <span className="h-1 w-1 rounded-full bg-slate-300" />
-                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">
-                              {eco.currentStage?.name ?? 'Initial'}
-                            </span>
-                          </div>
+                      >
+                        {/* Header: Type & Stage */}
+                        <div className="flex items-center justify-between">
+                          <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider ${
+                            eco.kind === 'product' 
+                              ? 'bg-amber-50 text-amber-700 border border-amber-100'
+                              : 'bg-indigo-50 text-indigo-700 border border-indigo-100'
+                          }`}>
+                            {eco.kind === 'product' ? 'Product' : formatEcoType(eco.ecoType)}
+                          </span>
+                          <span className="text-[10px] text-gray-400 font-medium">
+                            #{eco.id}
+                          </span>
                         </div>
-                      </div>
 
-                      <div className="flex flex-col gap-1.5 bg-slate-50 rounded-xl p-3 border border-slate-100 group-hover:bg-emerald-50/30 group-hover:border-emerald-100 transition-colors">
-                        {eco.product?.productCode ? (
-                          <>
-                            <div className="flex items-center justify-between">
-                              <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">Product Code</span>
-                              <span className="text-[10px] font-black text-slate-900">{eco.product.productCode}</span>
-                            </div>
-                            <p className="text-[11px] font-medium text-slate-600 truncate">{eco.product.productName ?? 'Unnamed Product'}</p>
-                          </>
-                        ) : (
-                          <span className="text-[10px] font-bold text-slate-300 italic">No linked product</span>
+                        {/* Title */}
+                        <div>
+                          <p className="text-sm font-semibold text-gray-900 leading-snug group-hover:text-emerald-600 transition-colors">
+                            {eco.title}
+                          </p>
+                        </div>
+
+                        {/* Product Info */}
+                        {eco.product?.productCode && (
+                          <div className="flex items-center gap-2 text-xs text-gray-500 bg-gray-50 p-2 rounded-md">
+                            <span className="font-mono font-medium text-gray-700">{eco.product.productCode}</span>
+                            <span className="truncate border-l border-gray-300 pl-2">{eco.product.productName}</span>
+                          </div>
                         )}
-                      </div>
 
-                      <div className="flex items-center justify-between pt-2">
-                        <div className="flex flex-col">
-                          <span className="text-[8px] font-black text-slate-400 uppercase tracking-tight">{label}</span>
-                          <span className="text-[10px] font-bold text-slate-600">
+                        {/* Footer: Stage & Date */}
+                        <div className="flex items-center justify-between pt-1 border-t border-gray-100 mt-1">
+                          <span className="text-xs font-medium text-gray-600">
+                            {eco.currentStage?.name ?? 'Initial'}
+                          </span>
+                          <span className="text-[10px] text-gray-400">
                             {timestamp ? formatDate(timestamp) : 'Recent'}
                           </span>
                         </div>
-                        {isOpenableEco && (
-                          <span className="flex h-8 items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1 text-[10px] font-black text-white shadow-lg shadow-emerald-600/20 opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
-                            {actionLabel}
-                            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" />
-                            </svg>
-                          </span>
-                        )}
                       </div>
-                    </div>
-                  );
-                })
-              )}
+                    );
+                  })
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-[32px] border border-slate-200 shadow-sm overflow-hidden">
-      {/* Desktop Header */}
-      <div className="hidden sm:grid grid-cols-12 gap-4 border-b border-slate-100 bg-slate-50/50 px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
-        <div className="col-span-4 lg:col-span-3">Name / Title</div>
+    <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+      <div className="hidden sm:grid grid-cols-12 gap-4 border-b border-gray-100 bg-gray-50/50 px-6 py-3 text-xs font-medium text-gray-500">
+        <div className="col-span-4 lg:col-span-3">Title</div>
         <div className="col-span-2">Type</div>
-        <div className="col-span-3">Linked Product</div>
-        <div className="col-span-3 lg:col-span-2">Current Stage</div>
+        <div className="col-span-3">Product</div>
+        <div className="col-span-3 lg:col-span-2">Stage</div>
         <div className="hidden lg:block lg:col-span-2 text-right">Status</div>
       </div>
 
-      <div className="divide-y divide-slate-100">
+      <div className="divide-y divide-gray-100">
         {ecos.map((eco) => {
           const isOpenableEco =
             eco.kind === 'eco' && !!onOpenEco && openableStatuses.includes(eco.status);
-          const actionLabel = eco.status === 'draft' ? 'Start' : 'Review';
-          const { timestamp, label } = getUpdatedMeta(eco);
+          const { timestamp } = getUpdatedMeta(eco);
 
           return (
             <div
@@ -289,88 +298,56 @@ export function EcoListPanel({
                   onOpenEco(eco.id);
                 }
               } : undefined}
-              className={`group flex flex-col sm:grid sm:grid-cols-12 gap-4 sm:gap-4 px-6 py-6 sm:px-8 sm:py-5 transition-all duration-300 ${isOpenableEco
-                ? 'cursor-pointer hover:bg-emerald-50/30 hover:shadow-[inset_4px_0_0_0_#10b981]'
-                : ''
-                }`}
+              className={`group flex flex-col sm:grid sm:grid-cols-12 gap-3 sm:gap-4 px-6 py-4 transition-colors ${
+                isOpenableEco
+                  ? 'cursor-pointer hover:bg-gray-50'
+                  : ''
+              }`}
             >
-              {/* Name/Title Column */}
+              {/* Title */}
               <div className="col-span-4 lg:col-span-3 flex flex-col justify-center">
-                <div className="flex items-center gap-3">
-                  <div className={`hidden sm:flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white shadow-sm transition-transform duration-300 group-hover:scale-110 group-hover:border-emerald-200 group-hover:bg-emerald-50`}>
-                    <svg className={`h-5 w-5 ${isOpenableEco ? 'text-emerald-500' : 'text-slate-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      {eco.ecoType === 'bom' ? (
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                      ) : (
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                      )}
-                    </svg>
-                  </div>
-                  <div className="min-w-0">
-                    <p className="font-black text-slate-900 group-hover:text-emerald-700 transition-colors truncate">{eco.title}</p>
-                    <p className="text-[10px] font-bold text-slate-400 mt-0.5">
-                      {timestamp ? `${label} ${formatDate(timestamp)}` : 'Recently created'}
-                    </p>
-                  </div>
-                </div>
+                <p className="text-sm font-medium text-gray-900 truncate">{eco.title}</p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {timestamp ? formatDate(timestamp) : 'Recent'}
+                </p>
               </div>
 
-              {/* Type Column */}
+              {/* Type */}
               <div className="col-span-2 flex items-center">
-                <span className="sm:hidden text-[9px] font-black text-slate-400 uppercase tracking-widest mr-3">Type</span>
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 text-[10px] font-black text-slate-600 uppercase tracking-tight group-hover:bg-white group-hover:ring-1 group-hover:ring-slate-200 transition-all">
-                  <span className={`h-1.5 w-1.5 rounded-full ${eco.ecoType === 'bom' ? 'bg-indigo-500' : 'bg-sky-500'}`} />
+                <span className="sm:hidden text-xs font-medium text-gray-500 mr-2">Type:</span>
+                <span className="inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">
                   {eco.kind === 'product' ? 'Product' : formatEcoType(eco.ecoType)}
                 </span>
               </div>
 
-              {/* Product Column */}
-              <div className="col-span-3 flex flex-col justify-center">
-                <span className="sm:hidden text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Linked Product</span>
+              {/* Product */}
+              <div className="col-span-3 flex flex-col justify-center min-w-0">
+                <span className="sm:hidden text-xs font-medium text-gray-500 mb-1">Product:</span>
                 {eco.product?.productCode ? (
-                  <div className="flex flex-col">
-                    <span className="text-[11px] font-black text-slate-900 tracking-tight">{eco.product.productCode}</span>
-                    <span className="text-[11px] font-medium text-slate-500 truncate">{eco.product.productName ?? 'Unnamed'}</span>
-                  </div>
+                  <>
+                    <span className="text-xs font-mono text-gray-900">{eco.product.productCode}</span>
+                    <span className="text-xs text-gray-500 truncate">{eco.product.productName}</span>
+                  </>
                 ) : (
-                  <span className="text-[11px] font-bold text-slate-300 italic">No linked product</span>
+                  <span className="text-xs text-gray-400 italic">No product</span>
                 )}
               </div>
 
-              {/* Stage Column */}
-              <div className="col-span-3 lg:col-span-2 flex flex-col justify-center">
-                <span className="sm:hidden text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Current Stage</span>
-                <div className="flex items-center gap-3">
-                  <span className="text-[11px] font-bold text-slate-700">{eco.currentStage?.name ?? 'Initial'}</span>
-                  {isOpenableEco && (
-                    <span className="hidden lg:inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2 py-0.5 text-[9px] font-black text-white shadow-lg shadow-emerald-600/20 group-hover:scale-105 transition-transform">
-                      {actionLabel}
-                    </span>
-                  )}
-                </div>
+              {/* Stage */}
+              <div className="col-span-3 lg:col-span-2 flex items-center">
+                <span className="sm:hidden text-xs font-medium text-gray-500 mr-2">Stage:</span>
+                <span className="text-sm text-gray-700">{eco.currentStage?.name ?? 'Initial'}</span>
               </div>
 
-              {/* Status Column */}
+              {/* Status */}
               <div className="col-span-12 lg:col-span-2 flex items-center lg:justify-end mt-2 sm:mt-0">
-                <span className="sm:hidden text-[9px] font-black text-slate-400 uppercase tracking-widest mr-3">Status</span>
+                <span className="sm:hidden text-xs font-medium text-gray-500 mr-2">Status:</span>
                 <span
-                  className={`inline-flex items-center rounded-lg border px-3 py-1 text-[10px] font-black uppercase tracking-[0.1em] ${statusClasses[eco.status]} transition-all group-hover:shadow-sm`}
+                  className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${statusClasses[eco.status]}`}
                 >
                   {statusLabels[eco.status]}
                 </span>
               </div>
-
-              {/* Mobile Action Button */}
-              {isOpenableEco && (
-                <div className="sm:hidden mt-4 pt-4 border-t border-slate-100">
-                  <button className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3 text-xs font-black text-white shadow-lg shadow-emerald-600/20 active:scale-95 transition-all">
-                    <span>{actionLabel} Record</span>
-                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" />
-                    </svg>
-                  </button>
-                </div>
-              )}
             </div>
           );
         })}

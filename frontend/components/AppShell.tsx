@@ -46,8 +46,10 @@ export function AppShell({ children }: AppShellProps) {
       />
       <div className="flex min-w-0 flex-1 flex-col">
         <Header onToggleSidebar={handleSidebarToggle} isSidebarOpen={isSidebarActive} sidebarId={sidebarId} />
-        <div className="flex-1 overflow-y-auto">
-          {children}
+        <div className="flex-1 overflow-y-auto flex flex-col">
+          <main className="flex-1">
+            {children}
+          </main>
           <Footer />
         </div>
       </div>

@@ -4,7 +4,7 @@
 
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
   ApprovalRule,
   Delegation,
@@ -141,6 +141,7 @@ export interface UseRuleOptions {
 }
 
 export function useRule(options: UseRuleOptions = {}) {
+  const { ruleId: initialRuleId, autoFetch = true } = options;
   const [rule, setRule] = useState<ApprovalRule | null>(null);
   const [history, setHistory] = useState<RuleAuditEntry[]>([]);
   const [loading, setLoading] = useState(false);
@@ -160,6 +161,13 @@ export function useRule(options: UseRuleOptions = {}) {
       setLoading(false);
     }
   }, []);
+
+  // Auto-fetch on mount if ruleId is provided
+  useEffect(() => {
+    if (autoFetch && initialRuleId) {
+      fetchRule(initialRuleId);
+    }
+  }, [initialRuleId, fetchRule, autoFetch]);
 
   const fetchHistory = useCallback(async (ruleId: string) => {
     if (!ruleId) return;
@@ -309,6 +317,7 @@ export function useRule(options: UseRuleOptions = {}) {
     loading,
     error,
     fetchRule,
+    refetch: fetchRule, // Alias for consistency
     fetchHistory,
     testRule,
     updateRule,

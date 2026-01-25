@@ -3,6 +3,7 @@ import cors from 'cors';
 import { config } from './config/env.js';
 import { prisma } from './config/database.js';
 import errorHandler from './middlewares/error.handler.js';
+import emailService from './utils/emailService.js';
 
 // Import routes
 import authRoutes from './modules/auth/auth.routes.js';
@@ -77,7 +78,7 @@ app.use((req, res) => {
 app.use(errorHandler);
 
 // Start server
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`🚀 Server is running on http://localhost:${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/health`);
   console.log(`🔐 Auth endpoints: http://localhost:${PORT}/api/auth`);
@@ -90,6 +91,10 @@ app.listen(PORT, () => {
   console.log(`🧾 Audit endpoints: http://localhost:${PORT}/api/audit-logs`);
   console.log(`📋 Approval Rules endpoints: http://localhost:${PORT}/api/approval-rules`);
   console.log(`👥 Delegations endpoints: http://localhost:${PORT}/api/delegations`);
+  
+  // Initialize email service
+  console.log('📧 Initializing email service...');
+  await emailService.initialize();
 });
 
 // Graceful shutdown

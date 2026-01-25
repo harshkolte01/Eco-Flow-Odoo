@@ -44,7 +44,7 @@ export interface RuleCondition {
   id?: string;
   fieldName: string;
   operator: RuleOperator;
-  fieldValue: string | string[];
+  fieldValue: string | string[] | boolean;
   logicalOperator?: 'AND' | 'OR';
 }
 

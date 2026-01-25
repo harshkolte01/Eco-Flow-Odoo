@@ -12,28 +12,78 @@ export default class RuleEvaluationService {
         where: { id: ecoId },
         include: {
           product: {
+            select: {
+              productCode: true
+            }
+          },
+          productChange: {
             include: {
-              versions: {
-                where: { status: "active" },
-                take: 1
+              baseProductVersion: {
+                select: {
+                  productName: true,
+                  salePrice: true,
+                  costPrice: true,
+                  attachments: true
+                }
               }
             }
           },
-          bom: {
+          bomDraft: {
             include: {
-              versions: {
-                where: { status: "active" },
-                take: 1
+              components: {
+                select: {
+                  componentProductVersionId: true,
+                  quantity: true
+                }
+              },
+              operations: {
+                select: {
+                  operationName: true,
+                  timeMinutes: true,
+                  workCenter: true
+                }
+              },
+              baseBomVersion: {
+                include: {
+                  components: {
+                    select: {
+                      componentProductVersionId: true,
+                      quantity: true
+                    }
+                  },
+                  operations: {
+                    select: {
+                      operationName: true,
+                      timeMinutes: true,
+                      workCenter: true
+                    }
+                  }
+                }
               }
             }
           },
-          currentStage: true
+          currentStage: {
+            select: {
+              id: true,
+              approvalRequired: true
+            }
+          }
         }
       });
 
       if (!eco) {
         throw new Error(`ECO ${ecoId} not found`);
       }
+
+      if (!eco.currentStage?.approvalRequired) {
+        return {
+          approvers: [],
+          rulesApplied: 0,
+          rulesTriggered: 0
+        };
+      }
+
+      const evaluationContext = this.buildRuleContext(eco);
 
       // Get all active rules for this stage
       const applicableRules = await prisma.approvalRule.findMany({
@@ -60,7 +110,7 @@ export default class RuleEvaluationService {
 
       for (const rule of applicableRules) {
         // Check if rule conditions are met
-        const conditionsMet = await this.evaluateRuleConditions(rule.conditions, eco);
+        const conditionsMet = await this.evaluateRuleConditions(rule.conditions, evaluationContext);
 
         // Log the evaluation
         evaluationLogs.push({
@@ -120,29 +170,36 @@ export default class RuleEvaluationService {
       return true; // No conditions = always applies
     }
 
-    // Get the product version
-    const productVersion = eco.product.versions?.[0];
+    let combinedResult = null;
 
-    for (const condition of conditions) {
-      const result = await this.evaluateCondition(condition, eco, productVersion);
+    for (let i = 0; i < conditions.length; i += 1) {
+      const condition = conditions[i];
+      const result = await this.evaluateCondition(condition, eco);
 
-      // If any condition fails (AND logic), entire rule fails
-      if (!result) {
-        return false;
+      if (i === 0) {
+        combinedResult = result;
+        continue;
+      }
+
+      const operator = (condition.logicalOperator || 'AND').toUpperCase();
+      if (operator === 'OR') {
+        combinedResult = combinedResult || result;
+      } else {
+        combinedResult = combinedResult && result;
       }
     }
 
-    return true; // All conditions passed
+    return Boolean(combinedResult);
   }
 
   /**
    * Evaluate a single condition
    */
-  async evaluateCondition(condition, eco, productVersion) {
+  async evaluateCondition(condition, eco) {
     const { fieldName, operator, fieldValue } = condition;
 
     // Extract value from ECO data
-    let actualValue = this.extractFieldValue(fieldName, eco, productVersion);
+    const actualValue = this.extractFieldValue(fieldName, eco);
 
     if (actualValue === null || actualValue === undefined) {
       return false; // Field not found = condition fails
@@ -156,43 +213,15 @@ export default class RuleEvaluationService {
    * Extract field value from ECO data using dot notation
    * Examples: "product.salePrice", "eco.type", "product.category"
    */
-  extractFieldValue(fieldPath, eco, productVersion) {
+  extractFieldValue(fieldPath, eco) {
     const parts = fieldPath.split(".");
+    let value = eco;
 
-    if (parts[0] === "eco") {
-      // Navigate through ECO object
-      let value = eco;
-      for (let i = 1; i < parts.length; i++) {
-        value = value?.[parts[i]];
-      }
-      return value;
-    } else if (parts[0] === "product") {
-      // Navigate through product/productVersion
-      if (parts[1] === "version") {
-        // product.version.salePrice
-        let value = productVersion;
-        for (let i = 2; i < parts.length; i++) {
-          value = value?.[parts[i]];
-        }
-        return value;
-      } else {
-        // product.salePrice (use active version)
-        let value = productVersion;
-        for (let i = 1; i < parts.length; i++) {
-          value = value?.[parts[i]];
-        }
-        return value;
-      }
-    } else if (parts[0] === "bom") {
-      // Navigate through BOM
-      let value = eco.bom;
-      for (let i = 1; i < parts.length; i++) {
-        value = value?.[parts[i]];
-      }
-      return value;
+    for (let i = 0; i < parts.length; i += 1) {
+      value = value?.[parts[i]];
     }
 
-    return null;
+    return value ?? null;
   }
 
   /**
@@ -222,11 +251,17 @@ export default class RuleEvaluationService {
         return actualStr === expectedStr;
 
       case "IN": // Value is in list (comma-separated)
-        const items = expected.split(",").map(s => s.trim().toLowerCase());
+        const items = String(expected)
+          .split(",")
+          .map(s => s.trim().toLowerCase())
+          .filter(Boolean);
         return items.includes(actualStr);
 
       case "NOT_IN": // Value is NOT in list
-        const notItems = expected.split(",").map(s => s.trim().toLowerCase());
+        const notItems = String(expected)
+          .split(",")
+          .map(s => s.trim().toLowerCase())
+          .filter(Boolean);
         return !notItems.includes(actualStr);
 
       case "CONTAINS": // String contains
@@ -239,6 +274,198 @@ export default class RuleEvaluationService {
         console.warn(`Unknown operator: ${operator}`);
         return false;
     }
+  }
+
+  normalizeNumber(value) {
+    if (value === null || value === undefined) {
+      return null;
+    }
+    const parsed = Number(value);
+    return Number.isNaN(parsed) ? null : parsed;
+  }
+
+  hasNumberChanged(nextValue, baseValue) {
+    const normalizedNext = this.normalizeNumber(nextValue);
+    const normalizedBase = this.normalizeNumber(baseValue);
+
+    if (normalizedNext === null && normalizedBase === null) {
+      return false;
+    }
+    if (normalizedNext === null || normalizedBase === null) {
+      return true;
+    }
+    return normalizedNext !== normalizedBase;
+  }
+
+  hasJsonChanged(nextValue, baseValue) {
+    const normalizedNext = nextValue ?? null;
+    const normalizedBase = baseValue ?? null;
+    return JSON.stringify(normalizedNext) !== JSON.stringify(normalizedBase);
+  }
+
+  countComponentChanges(baseComponents = [], draftComponents = []) {
+    const baseMap = new Map(
+      baseComponents.map((component) => [
+        component.componentProductVersionId,
+        this.normalizeNumber(component.quantity)
+      ])
+    );
+    const draftMap = new Map(
+      draftComponents.map((component) => [
+        component.componentProductVersionId,
+        this.normalizeNumber(component.quantity)
+      ])
+    );
+
+    let changes = 0;
+
+    for (const [componentId, quantity] of baseMap.entries()) {
+      if (!draftMap.has(componentId)) {
+        changes += 1;
+        continue;
+      }
+      if (draftMap.get(componentId) !== quantity) {
+        changes += 1;
+      }
+    }
+
+    for (const componentId of draftMap.keys()) {
+      if (!baseMap.has(componentId)) {
+        changes += 1;
+      }
+    }
+
+    return changes;
+  }
+
+  countOperationChanges(baseOperations = [], draftOperations = []) {
+    const toKey = (operation) => `${operation.operationName}|${operation.workCenter ?? ''}`;
+    const baseMap = new Map(
+      baseOperations.map((operation) => [toKey(operation), operation.timeMinutes])
+    );
+    const draftMap = new Map(
+      draftOperations.map((operation) => [toKey(operation), operation.timeMinutes])
+    );
+
+    let changes = 0;
+
+    for (const [operationKey, timeMinutes] of baseMap.entries()) {
+      if (!draftMap.has(operationKey)) {
+        changes += 1;
+        continue;
+      }
+      if (draftMap.get(operationKey) !== timeMinutes) {
+        changes += 1;
+      }
+    }
+
+    for (const operationKey of draftMap.keys()) {
+      if (!baseMap.has(operationKey)) {
+        changes += 1;
+      }
+    }
+
+    return changes;
+  }
+
+  buildRuleContext(eco) {
+    const productDraft = eco.productChange;
+    const baseProduct = productDraft?.baseProductVersion;
+    const bomDraft = eco.bomDraft;
+    const baseBom = bomDraft?.baseBomVersion;
+
+    const productName = productDraft?.newProductName ?? null;
+    const salePrice = productDraft?.newSalePrice ?? null;
+    const costPrice = productDraft?.newCostPrice ?? null;
+
+    const nameChanged = productDraft && baseProduct
+      ? productDraft.newProductName !== baseProduct.productName
+      : false;
+    const salePriceChanged = productDraft && baseProduct
+      ? this.hasNumberChanged(productDraft.newSalePrice, baseProduct.salePrice)
+      : false;
+    const costPriceChanged = productDraft && baseProduct
+      ? this.hasNumberChanged(productDraft.newCostPrice, baseProduct.costPrice)
+      : false;
+    const attachmentsChanged = productDraft && baseProduct
+      ? this.hasJsonChanged(productDraft.newAttachments, baseProduct.attachments)
+      : false;
+
+    const productChangeCount = [nameChanged, salePriceChanged, costPriceChanged, attachmentsChanged]
+      .filter(Boolean).length;
+
+    const componentCount = bomDraft?.components?.length ?? null;
+    const operationCount = bomDraft?.operations?.length ?? null;
+
+    const componentChanges = bomDraft && baseBom
+      ? this.countComponentChanges(baseBom.components, bomDraft.components)
+      : 0;
+    const operationChanges = bomDraft && baseBom
+      ? this.countOperationChanges(baseBom.operations, bomDraft.operations)
+      : 0;
+    const bomChangeCount = componentChanges + operationChanges;
+
+    const changesCount = eco.ecoType === 'product' ? productChangeCount : bomChangeCount;
+    const hasPriceChange = eco.ecoType === 'product' ? (salePriceChanged || costPriceChanged) : false;
+    const hasSpecChange = eco.ecoType === 'product'
+      ? (nameChanged || attachmentsChanged)
+      : bomChangeCount > 0;
+
+    return {
+      eco: {
+        type: eco.ecoType,
+        ecoType: eco.ecoType,
+        title: eco.title
+      },
+      product: {
+        name: productName,
+        sku: eco.product?.productCode ?? null,
+        code: eco.product?.productCode ?? null,
+        productCode: eco.product?.productCode ?? null,
+        salePrice,
+        costPrice
+      },
+      bom: {
+        componentCount,
+        operationCount
+      },
+      changes: {
+        count: changesCount,
+        hasPriceChange,
+        hasSpecChange
+      }
+    };
+  }
+
+  buildRuleContextFromMock(mockEcoData = {}) {
+    const product = mockEcoData.product || {};
+    const productVersion = product.version || {};
+    const bom = mockEcoData.bom || {};
+
+    return {
+      eco: {
+        type: mockEcoData.type ?? mockEcoData.ecoType ?? null,
+        ecoType: mockEcoData.type ?? mockEcoData.ecoType ?? null,
+        title: mockEcoData.title ?? null
+      },
+      product: {
+        name: product.name ?? productVersion.productName ?? null,
+        sku: product.sku ?? product.productCode ?? null,
+        code: product.code ?? product.productCode ?? null,
+        productCode: product.productCode ?? null,
+        salePrice: product.salePrice ?? productVersion.salePrice ?? null,
+        costPrice: product.costPrice ?? productVersion.costPrice ?? null
+      },
+      bom: {
+        componentCount: bom.componentCount ?? null,
+        operationCount: bom.operationCount ?? null
+      },
+      changes: {
+        count: mockEcoData.changes?.count ?? null,
+        hasPriceChange: mockEcoData.changes?.hasPriceChange ?? null,
+        hasSpecChange: mockEcoData.changes?.hasSpecChange ?? null
+      }
+    };
   }
 
   /**
@@ -311,8 +538,10 @@ export default class RuleEvaluationService {
       const conditionResults = [];
       let allConditionsMet = true;
 
+      const context = this.buildRuleContextFromMock(mockEcoData);
+
       for (const condition of rule.conditions) {
-        const fieldValue = this.extractFieldValue(condition.fieldName, mockEcoData, mockEcoData.product?.version);
+        const fieldValue = this.extractFieldValue(condition.fieldName, context);
         const conditionMet = this.compareValues(fieldValue, condition.operator, condition.fieldValue);
 
         conditionResults.push({
