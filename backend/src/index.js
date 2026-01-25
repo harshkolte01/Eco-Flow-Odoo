@@ -14,6 +14,7 @@ import reportsRoutes from './modules/reports/reports.routes.js';
 import stagesRoutes from './modules/stages/stages.routes.js';
 import auditLogsRoutes from './modules/audit-logs/audit-logs.routes.js';
 import approvalRulesRoutes from './modules/approval-rules/approval-rules.routes.js';
+import delegationsRoutes from './modules/approval-rules/delegations.routes.js';
 
 // Initialize Express app
 const app = express();
@@ -62,6 +63,7 @@ app.use('/api/reports', reportsRoutes);
 app.use('/api/stages', stagesRoutes);
 app.use('/api/audit-logs', auditLogsRoutes);
 app.use('/api/approval-rules', approvalRulesRoutes);
+app.use('/api/delegations', delegationsRoutes);
 
 // 404 handler
 app.use((req, res) => {
@@ -87,6 +89,7 @@ app.listen(PORT, () => {
   console.log(`🧭 Stage endpoints: http://localhost:${PORT}/api/stages`);
   console.log(`🧾 Audit endpoints: http://localhost:${PORT}/api/audit-logs`);
   console.log(`📋 Approval Rules endpoints: http://localhost:${PORT}/api/approval-rules`);
+  console.log(`👥 Delegations endpoints: http://localhost:${PORT}/api/delegations`);
 });
 
 // Graceful shutdown

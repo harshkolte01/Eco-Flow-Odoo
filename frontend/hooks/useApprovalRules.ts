@@ -8,6 +8,7 @@ import { useState, useCallback } from 'react';
 import {
   ApprovalRule,
   Delegation,
+  DelegationStatus,
   RuleCondition,
   RuleApprover,
   RuleFilterOptions,
@@ -86,7 +87,9 @@ export function useRules(options: UseRulesOptions = {}) {
       try {
         const result = await approvalRulesClient.updateRule(ruleId, updates);
         // Update in list
-        setRules(rules.map((r) => (r.id === ruleId ? result : r)));
+        if (result) {
+          setRules(rules.map((r) => (r.id === ruleId ? result : r)));
+        }
         return result;
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to update rule';
@@ -149,7 +152,7 @@ export function useRule(options: UseRuleOptions = {}) {
     setError(null);
     try {
       const result = await approvalRulesClient.getRule(ruleId);
-      setRule(result);
+      setRule(result || null);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to fetch rule';
       setError(message);
@@ -191,7 +194,7 @@ export function useRule(options: UseRuleOptions = {}) {
       setError(null);
       try {
         const result = await approvalRulesClient.updateRule(ruleId, updates);
-        setRule(result);
+        setRule(result || null);
         return result;
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to update rule';
@@ -388,7 +391,7 @@ export function useDelegations(options: UseDelegationsOptions = {}) {
         // Update in list
         setDelegations(
           delegations.map((d) =>
-            d.id === delegationId ? { ...d, status: 'revoked' as const } : d
+            d.id === delegationId ? { ...d, status: DelegationStatus.REVOKED } : d
           )
         );
       } catch (err) {
@@ -459,7 +462,7 @@ export function useRuleEvaluation() {
     setError(null);
     try {
       const result = await approvalRulesClient.evaluateRulesForEco(ecoId);
-      setResult(result);
+      setResult(result || null);
       return result;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to evaluate rules';

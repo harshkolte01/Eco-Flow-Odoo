@@ -393,7 +393,7 @@ export default class ApprovalRulesService {
   /**
    * INTERNAL: Create audit log entry
    */
-  private async createAuditLog(ruleId, action, oldValue, newValue, performedById) {
+  async createAuditLog(ruleId, action, oldValue, newValue, performedById) {
     try {
       await prisma.ruleAudit.create({
         data: {

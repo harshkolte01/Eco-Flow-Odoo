@@ -3,9 +3,8 @@
  */
 
 import express from "express";
-import { authenticate, authorize } from "../../middlewares/auth.middleware.js";
+import { requireAuth, requireRole } from "../../middlewares/auth.middleware.js";
 import * as approvalRulesController from "./approval-rules.controller.js";
-import * as delegationController from "./delegation.controller.js";
 
 const router = express.Router();
 
@@ -14,138 +13,103 @@ const router = express.Router();
 // Rules CRUD - All require authentication and admin role
 router.post(
   "/",
-  authenticate,
-  authorize("admin"),
+  requireAuth,
+  requireRole("admin"),
   approvalRulesController.createRule
 );
 
 router.get(
   "/",
-  authenticate,
-  authorize("admin"),
+  requireAuth,
+  requireRole("admin"),
   approvalRulesController.listRules
 );
 
 router.get(
   "/:id",
-  authenticate,
-  authorize("admin"),
+  requireAuth,
+  requireRole("admin"),
   approvalRulesController.getRule
 );
 
 router.patch(
   "/:id",
-  authenticate,
-  authorize("admin"),
+  requireAuth,
+  requireRole("admin"),
   approvalRulesController.updateRule
 );
 
 router.delete(
   "/:id",
-  authenticate,
-  authorize("admin"),
+  requireAuth,
+  requireRole("admin"),
   approvalRulesController.deleteRule
 );
 
 // Conditions
 router.post(
   "/:ruleId/conditions",
-  authenticate,
-  authorize("admin"),
+  requireAuth,
+  requireRole("admin"),
   approvalRulesController.addCondition
 );
 
 router.patch(
   "/:ruleId/conditions/:conditionId",
-  authenticate,
-  authorize("admin"),
+  requireAuth,
+  requireRole("admin"),
   approvalRulesController.updateCondition
 );
 
 router.delete(
   "/:ruleId/conditions/:conditionId",
-  authenticate,
-  authorize("admin"),
+  requireAuth,
+  requireRole("admin"),
   approvalRulesController.deleteCondition
 );
 
 // Approvers
 router.post(
   "/:ruleId/approvers",
-  authenticate,
-  authorize("admin"),
+  requireAuth,
+  requireRole("admin"),
   approvalRulesController.addApprover
 );
 
 router.delete(
   "/:ruleId/approvers/:approverId",
-  authenticate,
-  authorize("admin"),
+  requireAuth,
+  requireRole("admin"),
   approvalRulesController.removeApprover
 );
 
 router.patch(
   "/:ruleId/approvers/:approverId",
-  authenticate,
-  authorize("admin"),
+  requireAuth,
+  requireRole("admin"),
   approvalRulesController.updateApprover
 );
 
 // History & Audit
 router.get(
   "/:id/history",
-  authenticate,
-  authorize("admin"),
+  requireAuth,
+  requireRole("admin"),
   approvalRulesController.getRuleHistory
 );
 
 // Testing & Evaluation
 router.post(
   "/:ruleId/test",
-  authenticate,
-  authorize("admin"),
+  requireAuth,
+  requireRole("admin"),
   approvalRulesController.testRule
 );
 
 router.post(
   "/evaluate",
-  authenticate,
+  requireAuth,
   approvalRulesController.evaluateRulesForEco
-);
-
-// ============ DELEGATION ROUTES ============
-
-// Delegations - Admins can manage all, approvers can view their own
-router.post(
-  "/delegations",
-  authenticate,
-  authorize("admin"),
-  delegationController.createDelegation
-);
-
-router.get(
-  "/delegations",
-  authenticate,
-  delegationController.listDelegations
-);
-
-router.get(
-  "/delegations/active-for-user/:userId",
-  authenticate,
-  delegationController.getActiveDelegationsForUser
-);
-
-router.patch(
-  "/delegations/:id/revoke",
-  authenticate,
-  delegationController.revokeDelegation
-);
-
-router.delete(
-  "/delegations/:id",
-  authenticate,
-  authorize("admin"),
-  delegationController.deleteDelegation
 );
 
 export default router;

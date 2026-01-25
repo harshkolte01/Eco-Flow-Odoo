@@ -3,7 +3,7 @@
  * Provides methods to interact with approval rules, conditions, approvers, and delegations
  */
 
-import { apiFetch, ApiError } from './api';
+import { apiFetch, ApiError } from '../api';
 import {
   ApprovalRule,
   Delegation,
