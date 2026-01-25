@@ -18,9 +18,7 @@ export const createDelegation = asyncHandler(async (req, res) => {
   const userId = req.user.id;
 
   if (!fromUserId || !toUserId || !startDate || !endDate) {
-    return res.status(400).json(
-      errorResponse("fromUserId, toUserId, startDate, and endDate are required")
-    );
+    return errorResponse(res, "fromUserId, toUserId, startDate, and endDate are required", 400);
   }
 
   const delegation = await delegationService.createDelegation(
@@ -28,7 +26,7 @@ export const createDelegation = asyncHandler(async (req, res) => {
     userId
   );
 
-  return res.status(201).json(success(delegation, "Delegation created successfully"));
+  return success(res, delegation, 201);
 });
 
 /**
@@ -50,12 +48,10 @@ export const listDelegations = asyncHandler(async (req, res) => {
   if (userRole !== "admin") {
     // Show delegations from or to this user
     const result = await delegationService.getActiveDelegationsForUser(userId);
-    return res.json(
-      success(
-        { delegationsFrom: result.delegationsFrom, delegationsTo: result.delegationsTo },
-        "User delegations fetched successfully"
-      )
-    );
+    return success(res, {
+      delegationsFrom: result.delegationsFrom,
+      delegationsTo: result.delegationsTo
+    }, 200);
   }
 
   // Admin can filter by any user
@@ -64,12 +60,13 @@ export const listDelegations = asyncHandler(async (req, res) => {
 
   const result = await delegationService.listDelegations(filters);
 
-  return res.json(
-    success(
-      { delegations: result.delegations, pagination: { page: result.page, pageSize: result.pageSize, total: result.total } },
-      "Delegations fetched successfully"
-    )
-  );
+  return success(res, {
+    data: result.delegations,
+    total: result.total,
+    page: parseInt(page),
+    pageSize: parseInt(pageSize),
+    totalPages: Math.ceil(result.total / parseInt(pageSize))
+  }, 200);
 });
 
 /**
@@ -83,12 +80,12 @@ export const getActiveDelegationsForUser = asyncHandler(async (req, res) => {
 
   // Non-admin users can only view their own delegations
   if (userRole !== "admin" && parseInt(userId) !== currentUserId) {
-    return res.status(403).json(errorResponse("You can only view your own delegations"));
+    return errorResponse(res, "You can only view your own delegations", 403);
   }
 
   const result = await delegationService.getActiveDelegationsForUser(parseInt(userId));
 
-  return res.json(success(result, "Active delegations fetched successfully"));
+  return success(res, result, 200);
 });
 
 /**
@@ -101,7 +98,7 @@ export const revokeDelegation = asyncHandler(async (req, res) => {
 
   const delegation = await delegationService.revokeDelegation(id, userId);
 
-  return res.json(success(delegation, "Delegation revoked successfully"));
+  return success(res, delegation, 200);
 });
 
 /**
@@ -113,5 +110,5 @@ export const deleteDelegation = asyncHandler(async (req, res) => {
 
   const delegation = await delegationService.deleteDelegation(id);
 
-  return res.json(success(delegation, "Delegation deleted successfully"));
+  return success(res, delegation, 200);
 });

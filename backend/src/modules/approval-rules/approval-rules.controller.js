@@ -23,9 +23,7 @@ export const createRule = asyncHandler(async (req, res) => {
 
   // Validation
   if (!name || !stageIds || !Array.isArray(stageIds)) {
-    return res.status(400).json(
-      errorResponse("name and stageIds are required", [])
-    );
+    return errorResponse(res, "name and stageIds are required", 400);
   }
 
   const rule = await approvalRulesService.createRule(
@@ -33,7 +31,7 @@ export const createRule = asyncHandler(async (req, res) => {
     userId
   );
 
-  return res.status(201).json(success(rule, "Approval rule created successfully"));
+  return success(res, rule, 201);
 });
 
 /**
@@ -53,12 +51,13 @@ export const listRules = asyncHandler(async (req, res) => {
     take: parseInt(pageSize)
   });
 
-  return res.json(
-    success(
-      { rules: result.rules, pagination: { page: result.page, pageSize: result.pageSize, total: result.total } },
-      "Approval rules fetched successfully"
-    )
-  );
+  return success(res, {
+    data: result.rules,
+    total: result.total,
+    page: parseInt(page),
+    pageSize: parseInt(pageSize),
+    totalPages: Math.ceil(result.total / parseInt(pageSize))
+  }, 200);
 });
 
 /**
@@ -70,7 +69,7 @@ export const getRule = asyncHandler(async (req, res) => {
 
   const rule = await approvalRulesService.getRule(id);
 
-  return res.json(success(rule, "Approval rule fetched successfully"));
+  return success(res, rule, 200);
 });
 
 /**
@@ -88,7 +87,7 @@ export const updateRule = asyncHandler(async (req, res) => {
     userId
   );
 
-  return res.json(success(rule, "Approval rule updated successfully"));
+  return success(res, rule, 200);
 });
 
 /**
@@ -101,7 +100,7 @@ export const deleteRule = asyncHandler(async (req, res) => {
 
   const rule = await approvalRulesService.deleteRule(id, userId);
 
-  return res.json(success(rule, "Approval rule deleted successfully"));
+  return success(res, rule, 200);
 });
 
 // ============ CONDITION OPERATIONS ============
@@ -116,9 +115,7 @@ export const addCondition = asyncHandler(async (req, res) => {
   const { fieldName, operator, fieldValue, logicalOperator } = req.body;
 
   if (!fieldName || !operator || !fieldValue) {
-    return res.status(400).json(
-      errorResponse("fieldName, operator, and fieldValue are required")
-    );
+    return errorResponse(res, "fieldName, operator, and fieldValue are required", 400);
   }
 
   const condition = await approvalRulesService.addCondition(
@@ -127,7 +124,7 @@ export const addCondition = asyncHandler(async (req, res) => {
     userId
   );
 
-  return res.status(201).json(success(condition, "Condition added successfully"));
+  return success(res, condition, 201);
 });
 
 /**
@@ -145,7 +142,7 @@ export const updateCondition = asyncHandler(async (req, res) => {
     userId
   );
 
-  return res.json(success(condition, "Condition updated successfully"));
+  return success(res, condition, 200);
 });
 
 /**
@@ -158,7 +155,7 @@ export const deleteCondition = asyncHandler(async (req, res) => {
 
   const condition = await approvalRulesService.deleteCondition(conditionId, userId);
 
-  return res.json(success(condition, "Condition deleted successfully"));
+  return success(res, condition, 200);
 });
 
 // ============ APPROVER OPERATIONS ============
@@ -173,7 +170,7 @@ export const addApprover = asyncHandler(async (req, res) => {
   const { userId: approverId, approvalCategory, canDelegate, escalationUserId, escalationThresholdDays } = req.body;
 
   if (!approverId) {
-    return res.status(400).json(errorResponse("userId is required"));
+    return errorResponse(res, "userId is required", 400);
   }
 
   const approver = await approvalRulesService.addApprover(
@@ -182,7 +179,7 @@ export const addApprover = asyncHandler(async (req, res) => {
     userId
   );
 
-  return res.status(201).json(success(approver, "Approver added successfully"));
+  return success(res, approver, 201);
 });
 
 /**
@@ -195,7 +192,7 @@ export const removeApprover = asyncHandler(async (req, res) => {
 
   const approver = await approvalRulesService.removeApprover(ruleId, parseInt(approverId), userId);
 
-  return res.json(success(approver, "Approver removed successfully"));
+  return success(res, approver, 200);
 });
 
 /**
@@ -214,7 +211,7 @@ export const updateApprover = asyncHandler(async (req, res) => {
     userId
   );
 
-  return res.json(success(approver, "Approver updated successfully"));
+  return success(res, approver, 200);
 });
 
 // ============ AUDIT & HISTORY ============
@@ -228,7 +225,7 @@ export const getRuleHistory = asyncHandler(async (req, res) => {
 
   const history = await approvalRulesService.getRuleHistory(id);
 
-  return res.json(success(history, "Rule history fetched successfully"));
+  return success(res, history, 200);
 });
 
 // ============ EVALUATION & TESTING ============
@@ -243,7 +240,7 @@ export const testRule = asyncHandler(async (req, res) => {
 
   const result = await ruleEvaluationService.simulateRuleEvaluation(ruleId, mockEcoData);
 
-  return res.json(success(result, "Rule simulation completed successfully"));
+  return success(res, result, 200);
 });
 
 /**
@@ -254,10 +251,10 @@ export const evaluateRulesForEco = asyncHandler(async (req, res) => {
   const { ecoId } = req.body;
 
   if (!ecoId) {
-    return res.status(400).json(errorResponse("ecoId is required"));
+    return errorResponse(res, "ecoId is required", 400);
   }
 
   const result = await ruleEvaluationService.evaluateRulesForEco(ecoId);
 
-  return res.json(success(result, "ECO rules evaluated successfully"));
+  return success(res, result, 200);
 });
