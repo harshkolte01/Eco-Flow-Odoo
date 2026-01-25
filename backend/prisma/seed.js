@@ -32,6 +32,7 @@ async function main() {
   // -----------------------
   // 1a) Seed Admin User (idempotent)
   // -----------------------
+  /*
   console.log('\n👤 Seeding admin user...');
 
   const adminRole = await prisma.role.findUnique({
@@ -66,9 +67,47 @@ async function main() {
     console.log('   ✓ Created admin user: admin (password: admin123)');
     console.log('   ⚠️  IMPORTANT: Change this password in production!');
   }
+  */
 
   // -----------------------
-  // 1b) Seed ECO Stages (idempotent)
+  // 1b) Seed Approver User (idempotent)
+  // -----------------------
+  console.log('\n👤 Seeding approver user...');
+
+  const approverRole = await prisma.role.findUnique({
+    where: { name: 'approver' }
+  });
+
+  if (!approverRole) {
+    throw new Error('Approver role not found! Ensure roles are seeded first.');
+  }
+
+  // Check if approver user already exists
+  const existingApprover = await prisma.user.findUnique({
+    where: { loginId: 'approver1' }
+  });
+
+  if (existingApprover) {
+    console.log('   ✓ Approver user already exists: approver1');
+  } else {
+    // Hash password: "Approver123"
+    const approverPasswordHash = await bcrypt.hash('Approver123', 10);
+
+    const approverUser = await prisma.user.create({
+      data: {
+        loginId: 'approver1',
+        name: 'Approver User',
+        email: 'approver@ecoflow.com',
+        passwordHash: approverPasswordHash,
+        roleId: approverRole.id
+      }
+    });
+
+    console.log('   ✓ Created approver user: approver1 (password: Approver123)');
+  }
+
+  // -----------------------
+  // 1c) Seed ECO Stages (idempotent)
   // -----------------------
   const ecoStages = [
     { name: 'New', sequenceOrder: 1, approvalRequired: false },
