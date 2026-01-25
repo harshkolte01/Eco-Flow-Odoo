@@ -35,6 +35,15 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Health check endpoint
+app.get('/', (req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    message: 'EcoFlow API is running',
+    version: '1.0.0',
+    timestamp: new Date().toISOString()
+  });
+});
+
 app.get('/health', async (req, res) => {
   try {
     // Check database connection
@@ -77,33 +86,54 @@ app.use((req, res) => {
 // Error handling middleware (must be last)
 app.use(errorHandler);
 
-// Start server
-app.listen(PORT, async () => {
-  console.log(`🚀 Server is running on http://localhost:${PORT}`);
-  console.log(`📊 Health check: http://localhost:${PORT}/health`);
-  console.log(`🔐 Auth endpoints: http://localhost:${PORT}/api/auth`);
-  console.log(`👥 Users endpoints: http://localhost:${PORT}/api/users`);
-  console.log(`🧾 ECO endpoints: http://localhost:${PORT}/api/ecos`);
-  console.log(`📦 Products endpoints: http://localhost:${PORT}/api/products`);
-  console.log(`🧩 BoMs endpoints: http://localhost:${PORT}/api/boms`);
-  console.log(`📈 Reports endpoints: http://localhost:${PORT}/api/reports`);
-  console.log(`🧭 Stage endpoints: http://localhost:${PORT}/api/stages`);
-  console.log(`🧾 Audit endpoints: http://localhost:${PORT}/api/audit-logs`);
-  console.log(`📋 Approval Rules endpoints: http://localhost:${PORT}/api/approval-rules`);
-  console.log(`👥 Delegations endpoints: http://localhost:${PORT}/api/delegations`);
-  
-  // Initialize email service
-  console.log('📧 Initializing email service...');
-  await emailService.initialize();
-});
+// Initialize email service (async)
+let emailInitialized = false;
+const initializeEmail = async () => {
+  if (!emailInitialized) {
+    try {
+      console.log('📧 Initializing email service...');
+      await emailService.initialize();
+      emailInitialized = true;
+      console.log('📧 Email service initialized successfully');
+    } catch (error) {
+      console.warn('📧 Email service initialization failed:', error.message);
+    }
+  }
+};
 
-// Graceful shutdown
-process.on('SIGINT', async () => {
-  await prisma.$disconnect();
-  process.exit(0);
-});
+// For local development
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, async () => {
+    console.log(`🚀 Server is running on http://localhost:${PORT}`);
+    console.log(`📊 Health check: http://localhost:${PORT}/health`);
+    console.log(`🔐 Auth endpoints: http://localhost:${PORT}/api/auth`);
+    console.log(`👥 Users endpoints: http://localhost:${PORT}/api/users`);
+    console.log(`🧾 ECO endpoints: http://localhost:${PORT}/api/ecos`);
+    console.log(`📦 Products endpoints: http://localhost:${PORT}/api/products`);
+    console.log(`🧩 BoMs endpoints: http://localhost:${PORT}/api/boms`);
+    console.log(`📈 Reports endpoints: http://localhost:${PORT}/api/reports`);
+    console.log(`🧭 Stage endpoints: http://localhost:${PORT}/api/stages`);
+    console.log(`🧾 Audit endpoints: http://localhost:${PORT}/api/audit-logs`);
+    console.log(`📋 Approval Rules endpoints: http://localhost:${PORT}/api/approval-rules`);
+    console.log(`👥 Delegations endpoints: http://localhost:${PORT}/api/delegations`);
+    
+    await initializeEmail();
+  });
 
-process.on('SIGTERM', async () => {
-  await prisma.$disconnect();
-  process.exit(0);
-});
+  // Graceful shutdown
+  process.on('SIGINT', async () => {
+    await prisma.$disconnect();
+    process.exit(0);
+  });
+
+  process.on('SIGTERM', async () => {
+    await prisma.$disconnect();
+    process.exit(0);
+  });
+} else {
+  // For Vercel serverless deployment - initialize email service on app start
+  initializeEmail().catch(console.error);
+}
+
+// Export the Express app for Vercel
+export default app;

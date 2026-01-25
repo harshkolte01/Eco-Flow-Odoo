@@ -1,0 +1,26 @@
+node_modules
+.env
+.env.local
+.env.*.local
+*.log
+.DS_Store
+Thumbs.db
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Development files
+nodemon.json
+test-auth.sh
+debug-products.js
+
+# Documentation
+docs/
+*.md
+CHECKLIST.md
+IMPLEMENTATION_SUMMARY.md
+
+# Prisma development files
+prisma/migrations/migration_lock.toml

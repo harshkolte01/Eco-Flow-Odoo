@@ -17,33 +17,45 @@ class EmailService {
   async initialize() {
     if (this.initialized) return;
 
-    const emailConfig = {
-      host: process.env.EMAIL_HOST,
-      port: parseInt(process.env.EMAIL_PORT || '587'),
-      secure: process.env.EMAIL_SECURE === 'true', // true for 465, false for other ports
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASSWORD,
-      },
-    };
-
-    // Check if email is configured
-    if (!emailConfig.host || !emailConfig.auth.user || !emailConfig.auth.pass) {
-      console.warn('⚠️  Email service not configured. Emails will not be sent.');
-      console.warn('Please configure EMAIL_HOST, EMAIL_USER, and EMAIL_PASSWORD in .env file');
-      return;
-    }
-
-    this.transporter = nodemailer.createTransport(emailConfig);
-
-    // Verify connection
     try {
-      await this.transporter.verify();
-      console.log('✅ Email service initialized successfully');
-      this.initialized = true;
+      const emailConfig = {
+        host: process.env.EMAIL_HOST,
+        port: parseInt(process.env.EMAIL_PORT || '587'),
+        secure: process.env.EMAIL_SECURE === 'true', // true for 465, false for other ports
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASSWORD,
+        },
+      };
+
+      // Check if email is configured
+      if (!emailConfig.host || !emailConfig.auth.user || !emailConfig.auth.pass) {
+        console.warn('⚠️  Email service not configured. Emails will not be sent.');
+        console.warn('Please configure EMAIL_HOST, EMAIL_USER, and EMAIL_PASSWORD in .env file');
+        this.initialized = true; // Mark as initialized to prevent retry loops
+        return;
+      }
+
+      this.transporter = nodemailer.createTransporter(emailConfig);
+
+      // Verify connection (with timeout for serverless)
+      const verifyPromise = this.transporter.verify();
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Email verification timeout')), 5000)
+      );
+
+      try {
+        await Promise.race([verifyPromise, timeoutPromise]);
+        console.log('✅ Email service initialized successfully');
+        this.initialized = true;
+      } catch (error) {
+        console.error('❌ Email service initialization failed:', error.message);
+        this.transporter = null;
+        this.initialized = true; // Mark as initialized to prevent retry loops
+      }
     } catch (error) {
-      console.error('❌ Email service initialization failed:', error.message);
-      this.transporter = null;
+      console.error('❌ Email service initialization error:', error.message);
+      this.initialized = true; // Mark as initialized to prevent retry loops
     }
   }
 
