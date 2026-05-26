@@ -1,164 +1,177 @@
-# ECOFlow Backend - Quick Start Guide
+# EcoFlow Backend
+
+Express API for EcoFlow's engineering change control workflows. It handles authentication, user roles, products, BoMs, ECO workflows, approval rules, reporting, audit logs, and email-assisted password reset flows.
+
+## Tech Stack
+
+- Node.js with Express
+- Prisma ORM with PostgreSQL
+- JWT bearer authentication
+- bcrypt password hashing
+- Nodemailer for password reset email delivery
 
 ## Setup
 
-1. **Install dependencies:**
-   ```bash
-   npm install
-   ```
+Install dependencies:
 
-2. **Configure environment:**
-   - Copy `.env.example` to `.env` (already configured)
-   - JWT_SECRET is already generated
+```bash
+npm install
+```
 
-3. **Seed database with roles:**
-   ```bash
-   npm run prisma:seed
-   ```
+Create a local environment file:
 
-4. **Start development server:**
-   ```bash
-   npm run dev
-   ```
+```bash
+copy .env.example .env
+```
 
-Server runs on `http://localhost:5001`
+Update `.env`:
 
-## Quick Test Commands
+```env
+NODE_ENV=development
+PORT=5001
+DATABASE_URL=postgresql://username:password@host:port/database?sslmode=require
+JWT_SECRET=replace-with-a-secure-secret
+JWT_EXPIRES_IN=7d
+FRONTEND_URL=http://localhost:3000
 
-### 1. Health Check
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_SECURE=false
+EMAIL_USER=your-email@gmail.com
+EMAIL_PASSWORD=your-app-password
+EMAIL_FROM_NAME=EcoFlow
+```
+
+Generate the Prisma client, run migrations, and seed development data:
+
+```bash
+npm run prisma:generate
+npm run prisma:migrate
+npm run prisma:seed
+```
+
+Start the development API:
+
+```bash
+npm run dev
+```
+
+The API runs at `http://localhost:5001`.
+
+## Scripts
+
+```bash
+npm run dev              # Start API with nodemon
+npm run start            # Start API with node
+npm run build            # Deployment placeholder
+npm run prisma:generate  # Generate Prisma client
+npm run prisma:migrate   # Run local Prisma migrations
+npm run prisma:seed      # Seed roles, stages, products, BoMs, and sample data
+npm run prisma:studio    # Open Prisma Studio
+```
+
+## Health Check
+
 ```bash
 curl http://localhost:5001/health
 ```
 
-### 2. Signup (Creates user with 'engineering' role)
+Successful response includes `status: "ok"` and `database: "connected"`.
+
+## Authentication
+
+The app uses Login ID based authentication. Users sign in with `loginId`, not email.
+
+Signup creates a user with the default `engineering` role:
+
 ```bash
 curl -X POST http://localhost:5001/api/auth/signup \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "Test User",
-    "email": "test@example.com",
+    "loginId": "john101",
+    "name": "John Doe",
+    "email": "john@example.com",
     "password": "TestPass123"
   }'
 ```
 
-Save the `token` from response.
+Login returns a JWT token:
 
-### 3. Login
 ```bash
 curl -X POST http://localhost:5001/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{
-    "email": "test@example.com",
+    "loginId": "john101",
     "password": "TestPass123"
   }'
 ```
 
-### 4. Get Current User (requires token)
+Use the returned token for protected requests:
+
 ```bash
 curl -X GET http://localhost:5001/api/auth/me \
   -H "Authorization: Bearer YOUR_TOKEN_HERE"
 ```
 
-### 5. Create Admin User
-To test admin endpoints, first create a user, then update their role in database:
-
-```sql
--- In Prisma Studio or psql:
-UPDATE "User" 
-SET "roleId" = (SELECT id FROM "Role" WHERE name = 'admin') 
-WHERE email = 'test@example.com';
-```
-
-Then login again to get admin token.
-
-### 6. List Users (admin only)
-```bash
-curl -X GET http://localhost:5001/api/users \
-  -H "Authorization: Bearer YOUR_ADMIN_TOKEN"
-```
-
-### 7. Update User Role (admin only)
-```bash
-curl -X PATCH http://localhost:5001/api/users/2/role \
-  -H "Authorization: Bearer YOUR_ADMIN_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"roleName": "approver"}'
-```
-
-## API Endpoints
-
-### Authentication
-- `POST /api/auth/signup` - Register new user
-- `POST /api/auth/login` - Login and get token
-- `GET /api/auth/me` - Get current user (protected)
-
-### User Management (Admin Only)
-- `GET /api/users` - List all users (with pagination)
-- `PATCH /api/users/:id/role` - Update user role
-
 ## Roles
 
-1. **engineering** - Default role for new signups
-2. **approver** - Can approve ECOs
-3. **operations** - Read-only access
-4. **admin** - Full access including user management
+- `engineering`: Default role for new signups.
+- `approver`: Can participate in approval workflows.
+- `operations`: Read-focused operational access.
+- `admin`: Full management access, including users, stages, and settings.
 
-## Documentation
+## Main API Areas
 
-See `docs/auth-implementation.md` for complete documentation including:
-- Detailed API reference
-- JWT token structure
-- Middleware usage
-- Security best practices
-- Future ECO module integration examples
+- `POST /api/auth/signup` - Register a user.
+- `POST /api/auth/login` - Authenticate and receive a token.
+- `GET /api/auth/me` - Get the current authenticated user.
+- `POST /api/auth/change-password` - Change the current user's password.
+- `POST /api/auth/forgot-password` - Request a password reset token.
+- `POST /api/auth/reset-password` - Reset a password using a token.
+- `GET /api/users` - List users, admin only.
+- `GET /api/users/lookup` - Lookup users for assignment workflows.
+- `PATCH /api/users/:id/role` - Update a user's role, admin only.
+- `GET /api/products` - List products and versions.
+- `GET /api/boms` - List BoMs and versions.
+- `GET /api/ecos` - List ECO records.
+- `POST /api/ecos` - Create an ECO draft.
+- `GET /api/reports/*` - Reporting endpoints.
+- `GET /api/stages` - ECO stage management.
+- `GET /api/approval-rules` - Approval rule management.
+- `GET /api/delegations` - Approval delegation management.
+- `GET /api/audit-logs` - Audit history.
 
-## Useful Commands
+Most endpoints require `Authorization: Bearer <token>`.
 
-```bash
-# Start dev server with auto-reload
-npm run dev
+## Admin Testing
 
-# Generate Prisma client
-npm run prisma:generate
+To test admin-only endpoints, promote a local user after signup:
 
-# Run migrations
-npm run prisma:migrate
-
-# Open Prisma Studio
-npm run prisma:studio
-
-# Seed roles
-npm run prisma:seed
+```sql
+UPDATE "User"
+SET "roleId" = (SELECT id FROM "Role" WHERE name = 'admin')
+WHERE "loginId" = 'john101';
 ```
 
-## Environment Variables
+Then log in again to receive a token with the updated role.
 
-```env
-NODE_ENV=development
-PORT=5001
-DATABASE_URL=postgresql://...
-JWT_SECRET=<generated-secret>
-JWT_EXPIRES_IN=7d
-```
+## Project Structure
 
-## File Structure
-
-```
+```text
 backend/
-├── src/
-│   ├── config/           # Environment and database config
-│   ├── middlewares/      # Auth, error handling, validation
-│   ├── modules/
-│   │   ├── auth/         # Authentication endpoints
-│   │   └── users/        # User management endpoints
-│   └── utils/            # Response helpers, async handler
-├── docs/                 # Complete documentation
-└── prisma/               # Database schema and seeds
+  api/                 Vercel serverless entrypoint
+  docs/                Backend-specific notes
+  prisma/              Prisma schema, migrations, and seed script
+  src/
+    config/            Environment and Prisma client setup
+    middlewares/       Auth, validation, and error handling
+    modules/           Feature modules and route handlers
+    utils/             Shared helpers and services
 ```
 
-## Next Steps
+## Related Documentation
 
-1. ✅ Auth system is complete
-2. Implement ECO module with role-based permissions
-3. Implement Products module with role-based permissions
-4. Add rate limiting and additional security measures for production
+- `../docs/AUTH_QUICK_REFERENCE.md`
+- `../docs/login-id-auth-implementation.md`
+- `../docs/email-service-setup.md`
+- `../docs/APPROVAL_RULES_DEVELOPER_GUIDE.md`
